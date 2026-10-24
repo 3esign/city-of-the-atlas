@@ -12,7 +12,9 @@ Inspired by [eel Free School of Architecture](https://eelfreeschoolofarchitectur
 
 - A responsive exhibition HUD with frame navigation, an entity index and a reading room.
 - Procedural contour architecture: measures shape lobes, atriums, floors, ribs, twist and height.
-- Contour / Terraces comparison, plan view, optional relationship lines and dimensions.
+- A plan that actually fits: the camera solves the free area the HUD leaves, turns the sheet when the survey runs diagonally, and names every entity by rank.
+- A city that is inhabited by its own numbers: two walking figures per point of access, one street lamp per point of evidence, traffic on every proposed connection, and a dusk switch that makes the lighting legible.
+- Contour / Terraces comparison, optional relationship lines and dimensions.
 - Exterior walking with keyboard or touch joystick, orientation map and an explicit exit.
 - Reduced-motion support, render-on-demand, a static reading room and an offline single-file build.
 - Local Three.js; no runtime CDN, external fonts, analytics or package installation.
@@ -49,6 +51,9 @@ Publication is deliberately manual: set the repository's Pages source to **GitHu
 | Move in walk mode | W A S D; Shift to run | Left joystick |
 | Look | Pointer lock or drag | Drag outside joystick |
 | Exit walk | Esc; Model button | Model button |
+| Plan, everything named | Plan view; P | Plan view |
+| Day / dusk | Dusk; N | Day / dusk, in About / index |
+| Population on / off | Life; L | About / index |
 | Reset | Reset view; R | Reset view |
 
 Additional controls are available in About / index on narrow screens. Links: `#f0`, `#f1`, `#f2` select frames; `?e=0` opens an entity; `?walk` enters walking.

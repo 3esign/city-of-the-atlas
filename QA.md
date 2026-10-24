@@ -53,12 +53,37 @@
 - PASS — about drawer states authorship and independence
 - PASS — repeated form changes do not leak GPU geometry or colliders
 - PASS — terraces comparison works
-- PASS — plan view is near vertical
+- PASS — plan view is square on and fits every entity
 - PASS — connections expose pressed state
 - PASS — dimension controls expose state
 - PASS — mobile drawer exposes plan view
 - PASS — mobile focus retains usable distance
 - PASS — new features produce no runtime errors
+
+## v5 — plan, population and dusk (2026-10-24)
+
+Measured in the live page over a desktop viewport, an emulated phone, a walk and a phone-sized plan.
+
+- PASS — population instrumented for QA
+- PASS — two figures per point of access
+- PASS — one lamp per point of evidence
+- PASS — crowd and lamps are instanced, not 300 meshes
+- PASS — figures move through the city
+- PASS — plan is square on
+- PASS — every entity is inside the free rectangle in plan
+- PASS — every entity is labelled in plan
+- PASS — wide sheet spells the names out
+- PASS — plan labels do not collide
+- PASS — leaving plan restores the oblique frame
+- PASS — dusk drops the key light and lights the lamps
+- PASS — filament traffic runs when connections are shown
+- PASS — walk mode still runs with the population
+- PASS — phone plan fits every entity in the free rectangle
+- PASS — phone plan numbers all 21 without spelling them
+- PASS — phone population is halved but exact
+- PASS — phone viewport holds a usable frame rate (desktop GPU)
+- PASS — draw calls stay in budget
+- PASS — no runtime errors across the v5 pass
 
 ## Design review
 

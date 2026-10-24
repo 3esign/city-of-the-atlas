@@ -633,9 +633,11 @@ const LINES = [
 ].map(([a, b]) => [idx(a), idx(b)]).filter(([a, b]) => a >= 0 && b >= 0);
 
 const filaments = new THREE.Group(); scene.add(filaments);
+const filamentCurves = [];
 function buildFilaments() {
   filaments.children.forEach(c => c.geometry.dispose());
   filaments.clear();
+  filamentCurves.length = 0;
   LINES.forEach(([a, b]) => {
     const pa = masses[a].position, pb = masses[b].position;
     const A = new THREE.Vector3(pa.x, masses[a].scale.y * 0.80, pa.z);
@@ -644,6 +646,7 @@ function buildFilaments() {
     mid.y = Math.max(A.y, B.y) + Math.min(13, A.distanceTo(B) * 0.035);
     const curve = new THREE.CatmullRomCurve3(
       [A, A.clone().lerp(mid, 0.5), mid, mid.clone().lerp(B, 0.5), B]);
+    filamentCurves.push(curve);
     filaments.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.28, 4, false), MAT.filament));
   });
 }
@@ -742,6 +745,245 @@ function placeFigures() {
 placeFigures();
 
 /* ═══════════════════════════════════════════════════════════════════════
+   URBAN LIFE — the city is inhabited by its own numbers.
+   Nothing here is atmosphere for its own sake. Every moving body and every
+   lit lamp is one unit of the survey, and the count is read off the data:
+
+     two walking figures = one point of ACCESS     (who may enter the work)
+                           — one per point on a phone, so the ratio stays
+                             exact at half the population rather than
+                             truncating the last districts to fit a cap
+     one street lamp     = one point of EVIDENCE   (what is documented is lit)
+     one travelling dot  = traffic on a proposed line of descent
+
+   So a school with access 5 is busy and a school with evidence 1 stands in
+   the dark, and both facts are visible from the air without reading a word.
+   The mapping is restated in METHOD.md. It is authored, like every score.
+   ═══════════════════════════════════════════════════════════════════════ */
+const LIFE = { on: !reduce, dusk: false, t: 0 };
+const dummy = new THREE.Object3D();
+
+/* ── the crowd ─────────────────────────────────────────────────────────
+   One instanced mesh for the whole population: 21 schools' worth of
+   figures is one draw call. Each agent belongs to a mass, walks to a
+   neighbouring mass and back, and is pushed out of anything solid by the
+   same colliders the player uses — so the crowd obeys the city plan. */
+const agentGeo = (() => {
+  const b = new THREE.CapsuleGeometry(0.25, 0.94, 2, 6); b.translate(0, 0.92, 0);
+  const h = new THREE.SphereGeometry(0.2, 7, 5);         h.translate(0, 1.63, 0);
+  return mergeGeoms([b, h]);
+})();
+const agents = [];
+const AGENT_CAP = MOBILE ? 120 : 280;
+const crowd = new THREE.InstancedMesh(
+  agentGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86, metalness: 0 }),
+  AGENT_CAP);
+crowd.castShadow = !MOBILE; crowd.frustumCulled = false;
+crowd.count = 0;
+scene.add(crowd);
+
+const neighbours = E.map((_, i) => {
+  const n = LINES.filter(([a, b]) => a === i || b === i).map(([a, b]) => a === i ? b : a);
+  return n.length ? n : [(i + 7) % E.length];
+});
+
+function spawnAgents() {
+  const cTone = new THREE.Color();
+  E.forEach((d, i) => {
+    const n = Math.min(12, Math.max(2, d.acc * (MOBILE ? 1 : 2)));   // ACCESS, in bodies
+    for (let k = 0; k < n && agents.length < AGENT_CAP; k++) {
+      const h = hash(i * 31 + k * 7), h2 = hash(i * 17 + k * 97);
+      const a = {
+        home: i, to: neighbours[i][k % neighbours[i].length],
+        x: 0, z: 0, yaw: h * 6.28, sp: 2.1 + h2 * 2.4, lane: (h - 0.5) * 11,
+        wait: h2 * 3
+      };
+      const p = masses[i].position;
+      a.x = p.x + Math.cos(h * 6.28) * (masses[i].userData.w * 0.5 + 9 + h2 * 16);
+      a.z = p.z + Math.sin(h * 6.28) * (masses[i].userData.dp * 0.5 + 9 + h * 16);
+      crowd.setColorAt(agents.length,
+        cTone.setHex(d.kind === "eel" ? 0xb4075d : d.kind === "sat" ? 0x5b3340 : 0x1c1915));
+      agents.push(a);
+    }
+  });
+  crowd.count = agents.length;
+  if (crowd.instanceColor) crowd.instanceColor.needsUpdate = true;
+}
+spawnAgents();
+
+function stepCrowd(dt) {
+  for (let n = 0; n < agents.length; n++) {
+    const a = agents[n];
+    const tgt = masses[a.to].position;
+    let dx = tgt.x - a.x, dz = tgt.z - a.z;
+    const dd = Math.hypot(dx, dz) || 1;
+    // walk offset from the centre line: a street, not a spoke
+    const px = -dz / dd, pz = dx / dd;
+    let gx = dx / dd + px * (a.lane / Math.max(40, dd));
+    let gz = dz / dd + pz * (a.lane / Math.max(40, dd));
+    const gl = Math.hypot(gx, gz) || 1; gx /= gl; gz /= gl;
+
+    if (a.wait > 0) { a.wait -= dt; }
+    else {
+      a.x += gx * a.sp * dt; a.z += gz * a.sp * dt;
+      a.yaw += (Math.atan2(gx, gz) - a.yaw + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+    }
+    // the same solids the player cannot walk through
+    for (let c = 0; c < colliders.length; c++) {
+      const col = colliders[c];
+      const ox = a.x - col.x, oz = a.z - col.z;
+      if (col.wall) {
+        const hx = col.w / 2 + 1, hz = col.dp / 2 + 1;
+        if (Math.abs(ox) < hx && Math.abs(oz) < hz) {
+          if (hx - Math.abs(ox) < hz - Math.abs(oz)) a.x = col.x + Math.sign(ox || 1) * hx;
+          else a.z = col.z + Math.sign(oz || 1) * hz;
+        }
+      } else {
+        const od = Math.hypot(ox, oz);
+        if (od < col.r + 1.2) {
+          const r = col.r + 1.2;
+          a.x = col.x + ox / (od || 1) * r; a.z = col.z + oz / (od || 1) * r;
+        }
+      }
+    }
+    if (Math.hypot(tgt.x - a.x, tgt.z - a.z) < masses[a.to].userData.w * 0.5 + 12) {
+      const nb = neighbours[a.to];
+      const prev = a.to;
+      a.to = Math.random() < 0.45 ? a.home : nb[(Math.random() * nb.length) | 0];
+      if (a.to === prev) a.to = a.home;
+      a.lane = -a.lane; a.wait = 0.4 + Math.random() * 2.2;
+    }
+    dummy.position.set(a.x, 0, a.z);
+    dummy.rotation.set(0, a.yaw, 0);
+    dummy.updateMatrix();
+    crowd.setMatrixAt(n, dummy.matrix);
+  }
+  crowd.instanceMatrix.needsUpdate = true;
+}
+stepCrowd(0);          // a still city is still populated
+
+/* ── street lighting ───────────────────────────────────────────────────
+   Lamps stand on the kerb of each mass, one per point of evidence. They
+   are instanced posts plus instanced heads plus a flat pool of light; no
+   real point lights, which would cost a shader recompile per lamp. */
+const LAMP_H = 7.2;
+const lampPost = new THREE.InstancedMesh(
+  (() => { const g = new THREE.CylinderGeometry(0.11, 0.17, LAMP_H, 5); g.translate(0, LAMP_H / 2, 0); return g; })(),
+  new THREE.MeshStandardMaterial({ color: 0x4a4740, roughness: 0.5, metalness: 0.35 }), 220);
+const lampHeadMat = new THREE.MeshStandardMaterial({
+  color: 0xfdf3dd, emissive: new THREE.Color(0xffd79a), emissiveIntensity: 0.12, roughness: 0.4 });
+const lampHead = new THREE.InstancedMesh(
+  (() => { const g = new THREE.BoxGeometry(1.5, 0.22, 0.5); g.translate(0, LAMP_H, 0); return g; })(),
+  lampHeadMat, 220);
+const poolTex = (() => {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 128;
+  const g = cv.getContext("2d");
+  const rg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  rg.addColorStop(0, "rgba(255,230,186,.72)");
+  rg.addColorStop(0.42, "rgba(255,212,148,.22)");
+  rg.addColorStop(1, "rgba(255,205,140,0)");
+  g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+const poolMat = new THREE.MeshBasicMaterial({
+  map: poolTex, transparent: true, opacity: 0, depthWrite: false,
+  blending: THREE.AdditiveBlending, toneMapped: false });
+const lampPool = new THREE.InstancedMesh(
+  (() => { const g = new THREE.PlaneGeometry(15, 15); g.rotateX(-Math.PI / 2); return g; })(),
+  poolMat, 220);
+[lampPost, lampHead, lampPool].forEach(m => { m.frustumCulled = false; m.count = 0; scene.add(m); });
+lampPost.castShadow = false; lampPool.renderOrder = 1;
+
+const lamps = [];
+function placeLamps() {
+  lamps.length = 0;
+  E.forEach((d, i) => {
+    const n = Math.min(7, Math.max(0, d.evi));          // EVIDENCE, in lamps
+    const m = masses[i], R = Math.max(m.userData.w, m.userData.dp) * 0.5 + 9;
+    for (let k = 0; k < n; k++) {
+      const a = (k / Math.max(1, n)) * Math.PI * 2 + hash(i) * 3.1;
+      lamps.push({ i, dx: Math.cos(a) * R, dz: Math.sin(a) * R, rot: -a });
+    }
+  });
+  relightLamps();
+}
+function relightLamps() {
+  let n = 0;
+  for (const L of lamps) {
+    if (n >= 220) break;
+    const p = masses[L.i].position;
+    dummy.position.set(p.x + L.dx, 0, p.z + L.dz);
+    dummy.rotation.set(0, L.rot, 0); dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    lampPost.setMatrixAt(n, dummy.matrix);
+    lampHead.setMatrixAt(n, dummy.matrix);
+    dummy.position.y = 0.08; dummy.rotation.set(0, 0, 0); dummy.updateMatrix();
+    lampPool.setMatrixAt(n, dummy.matrix);
+    n++;
+  }
+  lampPost.count = lampHead.count = lampPool.count = n;
+  lampPost.instanceMatrix.needsUpdate = true;
+  lampHead.instanceMatrix.needsUpdate = true;
+  lampPool.instanceMatrix.needsUpdate = true;
+}
+placeLamps();
+
+/* ── traffic on the filaments ─────────────────────────────────────────── */
+const pulseMat = new THREE.MeshBasicMaterial({ color: C.pink, toneMapped: false });
+const pulses = new THREE.InstancedMesh(new THREE.SphereGeometry(0.85, 7, 5), pulseMat, 64);
+pulses.frustumCulled = false; pulses.count = 0; pulses.visible = false; scene.add(pulses);
+const pulseState = [];
+function stepPulses(dt) {
+  if (!filaments.visible || !filamentCurves.length) { pulses.visible = false; return; }
+  pulses.visible = true;
+  let n = 0;
+  for (let c = 0; c < filamentCurves.length && n < 64; c++) {
+    for (let k = 0; k < 2 && n < 64; k++) {
+      pulseState[n] = pulseState[n] === undefined ? (c * 0.17 + k * 0.5) % 1 : pulseState[n];
+      pulseState[n] = (pulseState[n] + dt * 0.11) % 1;
+      const p = filamentCurves[c].getPointAt(pulseState[n]);
+      dummy.position.copy(p); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix(); pulses.setMatrixAt(n, dummy.matrix); n++;
+    }
+  }
+  pulses.count = n;
+  pulses.instanceMatrix.needsUpdate = true;
+}
+
+/* ── dusk ──────────────────────────────────────────────────────────────
+   One switch moves the whole image, not the lamps alone: key light down
+   and warmer, sky and environment down, exposure and bloom up. The lamps
+   only read as light because everything around them agreed to be dark. */
+const DAY = { sun: 1.8, sunCol: 0xfff7eb, hemi: 0.80, env: 0.58, bg: 1.0,
+              fog: C.haze, fogD: 0.00024, expo: 1.02, bloom: 0.035, emis: 0.12, pool: 0 };
+const DUSK = { sun: 0.42, sunCol: 0xffc98f, hemi: 0.26, env: 0.20, bg: 0.34,
+               fog: 0x2e3340, fogD: 0.00058, expo: 1.30, bloom: 0.17, emis: 3.4, pool: 0.75 };
+const hemi = scene.children.find(o => o.isHemisphereLight);
+function applyLight(k = LIFE.dusk ? DUSK : DAY) {
+  sun.intensity = k.sun; sun.color.setHex(k.sunCol);
+  hemi.intensity = k.hemi;
+  scene.environmentIntensity = k.env;
+  scene.backgroundIntensity = k.bg;
+  scene.fog.color.setHex(k.fog); scene.fog.density = k.fogD;
+  gradeMat.uniforms.expo.value = k.expo;
+  gradeMat.uniforms.bloom.value = k.bloom;
+  lampHeadMat.emissiveIntensity = k.emis;
+  poolMat.opacity = k.pool;
+  groundMesh.material.color.setHex(LIFE.dusk ? 0x8d8b84 : 0xffffff);
+  renderer.shadowMap.needsUpdate = true;
+}
+function setDusk(on) {
+  LIFE.dusk = on;
+  document.body.classList.toggle("dusk", on);
+  applyLight();
+  invalidate(900);
+}
+
+/* everything that is placed relative to a mass has to move when the city
+   is resurveyed; one call, so nothing is forgotten */
+function relocateLife() { relightLamps(); }
+
+/* ═══════════════════════════════════════════════════════════════════════
    CAMERA — two positions toward the same institution.
    Orbit = the critic above the model.  Walk = the student inside it.
    ═══════════════════════════════════════════════════════════════════════ */
@@ -832,7 +1074,9 @@ addEventListener("pointermove", e => {
   const g = drag.touch ? 1.45 : 1;
   orbit.az -= dx * 0.0045 * g;
   orbit.pol = Math.max(0.10, Math.min(1.50, orbit.pol - dy * 0.0035 * g));
-  drag.x = e.clientX; drag.y = e.clientY; userMoved = true; applyOrbit();
+  drag.x = e.clientX; drag.y = e.clientY; userMoved = true;
+  if (drag.moved > 10) leavePlanUI();   // the moment they tilt it, it is no longer a plan
+  applyOrbit();
 });
 function endPointer(e) {
   if (e.type === 'pointercancel') suppressPick = true;
@@ -1085,6 +1329,7 @@ function applyTween(p) {
   buildFilaments();
   placeQuarter();
   placeFigures();
+  relocateLife();
   updateMap();
 }
 
@@ -1120,9 +1365,70 @@ function proj(x, y, z) {
            in: v3.z > -1 && v3.z < 1 };
 }
 
+/* In plan every mass is named. Labels are stacked against each other with
+   a single downward pass per screen column, so twenty-one names coexist
+   without a collision solver and without one covering another. */
+function drawPlanLabels() {
+  /* A 390 px sheet cannot carry 21 names at a readable size without
+     burying the city under them. On a phone the plan is numbered by rank
+     and the names are read in the index; on a desk they are spelled out. */
+  const fr = freeRect();
+  const numbersOnly = VW < 700 || fr.h < 300;
+  const items = masses.map((m, i) => {
+    const p = proj(m.position.x, m.scale.y, m.position.z);
+    let n = E[i].n; if (n.length > 24) n = n.slice(0, 23) + "…";
+    const r = String(rank(i, FI)).padStart(2, "0");
+    const text = numbersOnly ? r : `${r} ${n}`;
+    return { i, x: p.x, y: p.y, in: p.in, text,
+             w: numbersOnly ? 22 : text.length * 6.25 + 16 };
+  }).filter(p => p.in && p.x > -60 && p.x < VW + 60 && p.y > -40 && p.y < VH + 40);
+
+  /* Place by hand: sort down the sheet, then push each name below anything
+     already placed that it would have landed on. 21 labels, one sweep —
+     cheaper than a solver and it never leaves two names on top of each
+     other, which is the only thing a plan has to get right. */
+  items.sort((a, b) => a.y - b.y);
+  const placed = [];
+  for (const it of items) {
+    it.right = it.x + it.w < VW - 16;
+    it.lx = it.x + (it.right ? 10 : -10);
+    const x0 = it.right ? it.lx : it.lx - it.w;
+    const x1 = x0 + it.w;
+    let ly = it.y - 1;
+    for (let guard = 0; guard < 60; guard++) {
+      const gap = numbersOnly ? 12 : 14;
+      const hit = placed.find(q => x0 < q.x1 + 5 && q.x0 < x1 + 5 && Math.abs(q.ly - ly) < gap);
+      if (!hit) break;
+      ly = hit.ly + gap;
+    }
+    it.ly = Math.max(fr.y + 10, Math.min(fr.y + fr.h - 6, ly));
+    placed.push({ x0, x1, ly: it.ly });
+
+    gAnnot.appendChild(mk("path", { d: `M${it.x} ${it.y} L${it.lx - (it.right ? 4 : -4)} ${it.ly - 3}`,
+                                    class: "hair-faint" }));
+    gAnnot.appendChild(mk("circle", { cx: it.x, cy: it.y, r: 1.9, fill: "#141210" }));
+    const t = mk("text", { x: it.lx, y: it.ly, class: "dimtxt",
+                           "text-anchor": it.right ? "start" : "end",
+                           fill: E[it.i].kind === "eel" ? "#ad145d" : "#242822",
+                           style: "font:600 11px/1 ui-monospace,Consolas,monospace;letter-spacing:.02em" });
+    t.textContent = it.text;
+    gAnnot.appendChild(t);
+  }
+  const turn = Math.round(orbit.az * 180 / Math.PI);
+  const north = turn === 0 ? "N ↑" : `SHEET TURNED ${Math.abs(turn)}° ${turn > 0 ? "CW" : "ACW"}`;
+  // the caption rides the head of the free box; its foot belongs to the furniture
+  const cap = mk("text", { x: fr.x + 6, y: fr.y + 14, class: "dimtxt", opacity: 0.85 });
+  cap.textContent = numbersOnly
+    ? `PLAN · F0${FI + 1} · NUMBERED BY RANK · TAP A MASS FOR ITS NAME · ${north}`
+    : `PLAN · FRAME 0${FI + 1} · ${FRAMES[FI].name.toUpperCase()} · RANK BEFORE NAME · ${north}`;
+  gAnnot.appendChild(cap);
+}
+
 function drawAnnot() {
   gAnnot.textContent = "";
-  if (MODE === "walk" || !document.body.classList.contains("annotations")) return;
+  if (MODE === "walk") return;
+  if (document.body.classList.contains("plan")) { drawPlanLabels(); return; }
+  if (!document.body.classList.contains("annotations")) return;
 
   const li = leader(FI), m = masses[li];
   const H = m.scale.y, W = m.userData.w;
@@ -1304,13 +1610,154 @@ document.getElementById('geometry').onclick=()=>{
   renderer.shadowMap.needsUpdate=true;updateMap();invalidate();
 };
 document.getElementById('relations').onclick=e=>{filaments.visible=!filaments.visible;e.currentTarget.setAttribute('aria-pressed',String(filaments.visible));invalidate();};
-document.getElementById('plan-view').onclick=()=>{resetView();closeExhibit();orbit.pol=.08;applyOrbit();userMoved=true;invalidate();};
+/* ── PLAN — the sheet seen square on ──────────────────────────────────
+   The old plan button only tilted the camera; whatever was off the edge
+   stayed off the edge. This one solves the distance so the entire survey
+   — every mass, the regulatory wall, the eel quarter — lands inside the
+   rectangle the HUD actually leaves free, then labels all 21 by name. */
+function freeRect() {
+  const r = { x: 14, y: 14, w: VW - 28, h: VH - 28 };
+  /* position:fixed furniture reports offsetParent === null, so visibility
+     has to be asked for directly or every inset silently reads as zero. */
+  const vis = el => {
+    if (!el) return false;
+    const cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity < 0.05) return false;
+    const b = el.getBoundingClientRect();
+    return b.width > 8 && b.height > 8;
+  };
+  const el = id => document.getElementById(id);
+  let top = 14, bottom = VH - 14, left = 14, right = VW - 14;
+  const mast = el("masthead");
+  if (vis(mast)) top = Math.max(top, mast.getBoundingClientRect().bottom + 10);
+  for (const id of ["margin", "tools"]) {
+    const n = el(id); if (!vis(n)) continue;
+    const b = n.getBoundingClientRect();
+    if (b.bottom > VH * 0.62) bottom = Math.min(bottom, b.top - 10);        // parked at the foot
+    else if (b.right < VW * 0.5) left = Math.max(left, b.right + 12);
+    else if (b.left > VW * 0.5) right = Math.min(right, b.left - 12);
+  }
+  for (const id of ["tabs", "walk", "status-strip", "credit", "title-block"]) {
+    const n = el(id); if (!vis(n)) continue;
+    const b = n.getBoundingClientRect();
+    if (b.top > VH * 0.55) bottom = Math.min(bottom, b.top - 8);
+  }
+  r.x = left; r.y = top; r.w = Math.max(120, right - left); r.h = Math.max(120, bottom - top);
+  return r;
+}
+
+function planCorners() {
+  // every mass at its real footprint, plus the quarter ring around eel
+  const pts = [];
+  E.forEach((d, i) => {
+    const m = masses[i], hw = m.userData.w * 0.5 + 14, hd = m.userData.dp * 0.5 + 14;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1])
+      pts.push([m.position.x + sx * hw, m.position.z + sz * hd]);
+  });
+  const q = masses[eelIdx].position;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) pts.push([q.x + sx * 120, q.z + sz * 120]);
+  return pts;
+}
+
+/* With the camera straight above, the screen's up axis is the horizontal
+   component of the view, which for this orbit is −(sin az, cos az). Every
+   plan calculation goes through these two unit vectors, so turning the
+   sheet is one angle and not a special case. */
+const planAxes = az => ({ up: [-Math.sin(az), -Math.cos(az)],
+                          right: [Math.cos(az), -Math.sin(az)] });
+
+function planFraming() {
+  const pts = planCorners();
+  const fr = freeRect();
+  const vf = camera.fov * Math.PI / 180;
+  const hf = 2 * Math.atan(Math.tan(vf / 2) * (VW / VH));
+  const tanV = Math.tan(vf / 2) * (fr.h / VH), tanH = Math.tan(hf / 2) * (fr.w / VW);
+
+  /* A draughtsman turns the sheet when the survey runs diagonally across
+     it. The city is laid out on score axes, so on a portrait phone it
+     runs corner to corner; trying every quarter-turn in 15° steps and
+     keeping the one that needs the least height is the same move. */
+  let best = null;
+  for (let deg = -90; deg <= 90; deg += 15) {
+    const az = deg * Math.PI / 180;
+    const { up, right } = planAxes(az);
+    let u0 = 1e9, u1 = -1e9, r0 = 1e9, r1 = -1e9;
+    for (const [x, z] of pts) {
+      const u = x * up[0] + z * up[1], r = x * right[0] + z * right[1];
+      if (u < u0) u0 = u; if (u > u1) u1 = u;
+      if (r < r0) r0 = r; if (r > r1) r1 = r;
+    }
+    const ex = (r1 - r0) * 1.06, ey = (u1 - u0) * 1.06;     // 6 % air for the names
+    const dist = Math.max(ey / (2 * tanV), ex / (2 * tanH));
+    const penalty = 1 + Math.abs(deg) * 0.0007;             // north up unless it costs
+    if (!best || dist * penalty < best.cost)
+      best = { az, deg, dist, cost: dist * penalty, up, right,
+               cu: (u0 + u1) / 2, cr: (r0 + r1) / 2 };
+  }
+  const dist = Math.max(260, Math.min(2200, best.dist));
+  // centre of the survey, back in world coordinates
+  const cx = best.cr * best.right[0] + best.cu * best.up[0];
+  const cz = best.cr * best.right[1] + best.cu * best.up[1];
+  // aim at the centre of the free box, not the centre of the screen:
+  // push the target against the offset, in screen axes
+  const offR = ((fr.x + fr.w / 2) - VW / 2) / VW * (2 * dist * Math.tan(hf / 2));
+  const offU = ((fr.y + fr.h / 2) - VH / 2) / VH * (2 * dist * Math.tan(vf / 2));
+  return {
+    tx: cx - best.right[0] * offR + best.up[0] * offU,
+    tz: cz - best.right[1] * offR + best.up[1] * offU,
+    dist, ty: 0, az: best.az, deg: best.deg
+  };
+}
+function leavePlanUI() {
+  if (!document.body.classList.contains("plan")) return;
+  document.body.classList.remove("plan");
+  const b = document.getElementById("plan-view");
+  b.setAttribute("aria-pressed", "false"); b.textContent = "Plan view";
+}
+function planView(on = !document.body.classList.contains("plan")) {
+  document.body.classList.toggle("plan", on);
+  closeExhibit(); closePanel();
+  if (MODE === "walk") exitWalk();
+  const btn = document.getElementById("plan-view");
+  btn.setAttribute("aria-pressed", String(on));
+  btn.textContent = on ? "Leave plan" : "Plan view";
+  if (on) {
+    orbit.az = 0; orbit.pol = 0.0001;                    // square on, north up
+    Object.assign(orbit, planFraming());
+  } else {
+    orbit.az = -.64; orbit.pol = .88;
+    Object.assign(orbit, framing(FI));
+  }
+  userMoved = on;     // plan owns the camera; leaving hands it back to the frame
+  applyOrbit(); invalidate(900);
+  // one settling pass: furniture can still be animating when the button is hit
+  if (on) requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!document.body.classList.contains("plan") || MODE !== "orbit") return;
+    Object.assign(orbit, planFraming()); applyOrbit(); invalidate(600);
+  }));
+}
+document.getElementById('plan-view').onclick = () => planView();
+document.getElementById('dusk').onclick = () => setDusk(!LIFE.dusk);
+function toggleLife() {
+  LIFE.on = !LIFE.on;
+  const b = document.getElementById('life');
+  b.setAttribute('aria-pressed', String(LIFE.on));
+  b.textContent = LIFE.on ? 'Life: on' : 'Life: off';
+  invalidate();
+}
+document.getElementById('life').onclick = toggleLife;
+if (reduce) { LIFE.on = false; const b = document.getElementById('life');
+  b.textContent = 'Life: off'; b.setAttribute('aria-pressed', 'false'); }
 function closeExhibit(){document.body.classList.add('exploring');}
 renderer.domElement.addEventListener('pointerdown',closeExhibit);
 document.addEventListener('atlas-focus',closeExhibit);
 document.getElementById('feature').onclick=()=>document.dispatchEvent(new CustomEvent('atlas-focus',{detail:0}));
 document.getElementById('annotate').onclick=e=>{const on=document.body.classList.toggle('annotations');e.currentTarget.setAttribute('aria-pressed',String(on));invalidate();};
-document.querySelectorAll('[data-control]').forEach(button=>button.onclick=()=>{document.getElementById(button.dataset.control).click();document.body.classList.remove('notes-open');notesBtn.setAttribute('aria-expanded','false');});
+/* close the drawer before firing the control: a view that measures the
+   free screen must not measure it through an open drawer */
+document.querySelectorAll('[data-control]').forEach(button=>button.onclick=()=>{
+  document.body.classList.remove('notes-open');notesBtn.setAttribute('aria-expanded','false');
+  requestAnimationFrame(()=>document.getElementById(button.dataset.control).click());});
 
 function showProgram(p) {
   selectedEntity = null;
@@ -1418,6 +1865,9 @@ addEventListener("keydown", e => {
   }
   if (e.key === "1" || e.key === "2" || e.key === "3") setFrame(+e.key - 1);
   if (e.key.toLowerCase() === "f" && MODE === "orbit") enterWalk();
+  if (e.key.toLowerCase() === "p" && MODE === "orbit") planView();
+  if (e.key.toLowerCase() === "n") setDusk(!LIFE.dusk);
+  if (e.key.toLowerCase() === "l") toggleLife();
   if (e.key === "Escape") {
     if (MODE === "walk") exitWalk(); else closePanel();
     document.body.classList.remove('notes-open');notesBtn.setAttribute('aria-expanded','false');
@@ -1461,6 +1911,7 @@ function tick(now) {
     applyTween(p);
     if (p >= 1) tween = null;
   }
+  if (LIFE.on && !reduce) { LIFE.t += dt; stepCrowd(dt); stepPulses(dt); }
   if (MODE === "walk") {
     stepWalk(dt); updateNear();
     mapPlayer.setAttribute('transform',`translate(${walker.x},${walker.z}) rotate(${180-walker.yaw*180/Math.PI})`);
@@ -1490,7 +1941,8 @@ function tick(now) {
   }
   if (STILL && frames > 34) return;       // software rendering is slow; 34 settles it
   const moving = MODE === 'walk' && (Object.values(keys).some(Boolean) || tm.fx || tm.fz || Math.hypot(walker.vx,walker.vz) > .01);
-  if (tween || moving || now < activeUntil || frames < 3) frameRequest = requestAnimationFrame(tick);
+  const alive = LIFE.on && !reduce && !STILL;
+  if (tween || moving || alive || now < activeUntil || frames < 3) frameRequest = requestAnimationFrame(tick);
 }
 invalidate();
 
@@ -1504,7 +1956,9 @@ addEventListener("resize", () => {
   drawBorder();
   // a phone changes aspect by a whole turn, not a few pixels: re-frame unless
   // the camera has already been taken over by hand
-  if (MODE === "orbit" && !userMoved) { Object.assign(orbit, framing(FI)); applyOrbit(); }
+  if (MODE === "orbit" && document.body.classList.contains("plan")) {
+    Object.assign(orbit, planFraming()); applyOrbit();
+  } else if (MODE === "orbit" && !userMoved) { Object.assign(orbit, framing(FI)); applyOrbit(); }
   // headless Chrome leaves stale layers for position:fixed furniture when the
   // window settles to its real viewport. Force one full repaint of the page.
   for (const el of document.querySelectorAll("#margin,#title-block,#walk,#panel,#near,#sheet")) {
@@ -1518,5 +1972,52 @@ if (new URLSearchParams(location.search).has('qa')) window.__atlasQA = {
   geometry: () => masses.map(m=>({name:m.userData.d.n,finite:Array.from(m.geometry.attributes.position.array).every(Number.isFinite),vertices:m.geometry.attributes.position.count,meta:m.geometry.userData})),
   state: () => ({frame:FI,mode:MODE,frames,colliders:colliders.length,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,orbit:{...orbit},walker:{...walker},camera:camera.position.toArray(),tm:{...tm},tween:!!tween,scheduled:!!frameRequest,drawCalls:sceneStats.calls,pixelRatio:renderer.getPixelRatio(),geometryMode,triangles:sceneStats.triangles,webgl:renderer.getContext().getParameter(renderer.getContext().RENDERER)}),
   point: i => proj(masses[i].position.x,masses[i].scale.y/2,masses[i].position.z),
+  life: () => ({
+    agents: agents.length,
+    agentsExpected: E.reduce((s,d)=>s+Math.min(12,Math.max(2,d.acc*(MOBILE?1:2))),0),
+    lamps: lampPost.count,
+    lampsExpected: E.reduce((s,d)=>s+Math.min(7,Math.max(0,d.evi)),0),
+    drawables: [crowd,lampPost,lampHead,lampPool].length,
+    on: LIFE.on, dusk: LIFE.dusk
+  }),
+  agent: i => ({x:agents[i].x,z:agents[i].z,yaw:agents[i].yaw}),
+  light: () => ({sun:sun.intensity,emissive:lampHeadMat.emissiveIntensity,pool:poolMat.opacity,
+                 expo:gradeMat.uniforms.expo.value,env:scene.environmentIntensity}),
+  pulses: () => pulses.visible ? pulses.count : 0,
+  walkTo: (x,z) => { walker.x=x; walker.z=z; invalidate(600); },
+  /* Does the plan actually fit, and do the names read? Measured against the
+     same free rectangle the camera solved for, and against the labels the
+     overlay really emitted — not against the intention. */
+  planFit: () => {
+    drawAnnot();
+    const fr = freeRect();
+    let outside = 0;
+    masses.forEach(m => {
+      for (const [dx,dz] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+        const p = proj(m.position.x+dx*m.userData.w*0.5, 0, m.position.z+dz*m.userData.dp*0.5);
+        if (!p.in || p.x < fr.x || p.x > fr.x+fr.w || p.y < fr.y || p.y > fr.y+fr.h) { outside++; return; }
+      }
+    });
+    const texts = [...gAnnot.querySelectorAll('text')].filter(t=>/^\d\d($| )/.test(t.textContent));
+    const boxes = texts.map(t=>t.getBoundingClientRect());
+    let collisions = 0;
+    for (let a=0;a<boxes.length;a++) for (let b=a+1;b<boxes.length;b++) {
+      const A=boxes[a],B=boxes[b];
+      if (A.left<B.right-1 && B.left<A.right-1 && A.top<B.bottom-1 && B.top<A.bottom-1) collisions++;
+    }
+    const box = pts => {
+      let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+      for (const [wx,wz] of pts) { const p=proj(wx,0,wz);
+        x0=Math.min(x0,p.x);x1=Math.max(x1,p.x);y0=Math.min(y0,p.y);y1=Math.max(y1,p.y); }
+      return {x0,x1,y0,y1,dx:Math.round((x0+x1)/2-(fr.x+fr.w/2)),dy:Math.round((y0+y1)/2-(fr.y+fr.h/2))};
+    };
+    const massPts=[];
+    masses.forEach(m=>{for(const[dx,dz]of[[-1,-1],[1,-1],[-1,1],[1,1]])
+      massPts.push([m.position.x+dx*m.userData.w*0.5,m.position.z+dz*m.userData.dp*0.5]);});
+    const bbox = box(massPts), fullBox = box(planCorners());
+    return { bbox, fullBox, pol: orbit.pol, az: orbit.az, deg: Math.round(orbit.az*180/Math.PI),
+             dist: orbit.dist, free: fr, outside, labels: texts.length,
+             named: texts.filter(t=>t.textContent.length>3).length, collisions, plan: document.body.classList.contains('plan') };
+  },
   bare: () => {gradeMat.uniforms.bloom.value=0;gradeMat.uniforms.vig.value=0;gradeMat.uniforms.chroma.value=0;gradeMat.uniforms.grain.value=0;renderer.shadowMap.enabled=false;sun.castShadow=false;scene.traverse(o=>{if(o.material)for(const m of Array.isArray(o.material)?o.material:[o.material])m.needsUpdate=true;});invalidate();}
 };

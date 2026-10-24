@@ -442,18 +442,21 @@ body.walking #minimap{display:block}
   <div id="frames"></div>
   <div id="zoning"></div>
   <div id="entity-index"><label for="entity-select">Explore the 21 entities</label><select id="entity-select"><option value="">Choose an entity…</option></select><div class="source-note">Uncalibrated study · <a href="atlas-table.html">Measures, notes & proposals →</a></div></div>
-  <div id="drawer-tools"><button type="button" data-control="plan-view">Plan view</button><button type="button" data-control="relations">Toggle connections</button><button type="button" data-control="annotate">Toggle dimensions</button><a href="METHOD.md">How forms encode data ↗</a><a href="https://github.com/3esign/city-of-the-atlas" target="_blank" rel="noopener">Open source ↗</a></div>
+  <div id="drawer-tools"><button type="button" data-control="plan-view">Plan view</button><button type="button" data-control="dusk">Day / dusk</button><button type="button" data-control="life">Population on / off</button><button type="button" data-control="relations">Toggle connections</button><button type="button" data-control="annotate">Toggle dimensions</button><a href="METHOD.md">How forms encode data ↗</a><a href="https://github.com/3esign/city-of-the-atlas" target="_blank" rel="noopener">Open source ↗</a></div>
   <div id="legend">
     <div class="row"><span class="sw" style="background:#e20a7f"></span>eel and its satellites</div>
     <div class="row"><span class="sw" style="background:#e3dccb"></span>schools now operating</div>
     <div class="row"><span class="sw" style="background:#3a3832"></span>historical experiments / archived editions</div>
     <div class="row"><span class="sw" style="background:#2b3038"></span>the regulatory baseline</div>
     <div class="row"><span class="sw lot"></span>reserved plot — our proposed contribution</div>
+    <div class="row"><span class="sw" style="background:#1c1915;border-radius:50%"></span>one walking figure = one point of access</div>
+    <div class="row"><span class="sw" style="background:#ffd79a"></span>one street lamp = one point of evidence</div>
   </div>
   <div id="keys">
     <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> resurvey &nbsp;·&nbsp; drag to orbit &nbsp;·&nbsp; wheel to zoom<br>
     <kbd>F</kbd> walk at eye height &nbsp;·&nbsp; <kbd>Esc</kbd> return to the model<br>
     <kbd>R</kbd> reset &nbsp;·&nbsp; arrows orbit &nbsp;·&nbsp; <kbd>+</kbd> <kbd>−</kbd> zoom<br>
+    <kbd>P</kbd> plan, everything named &nbsp;·&nbsp; <kbd>N</kbd> dusk &nbsp;·&nbsp; <kbd>L</kbd> population<br>
     height = standing in the active frame · contours = eight measures · atrium = access
   </div>
   <div id="touch-keys">
@@ -466,7 +469,7 @@ body.walking #minimap{display:block}
 <nav id="tabs" aria-label="Frames"></nav>
 
 <button id="walk" type="button">Enter / walk<span class="ar">→</span></button>
-<nav id="tools" aria-label="View controls"><button id="reset" type="button" title="Reset view (R)">Reset view</button><button id="plan-view" type="button">Plan view</button><button id="geometry" type="button" aria-pressed="false">Form: contour</button><button id="relations" type="button" aria-pressed="false">Connections</button><button id="annotate" type="button" aria-pressed="false">Dimensions</button><a href="atlas-table.html">Reading room ↗</a></nav>
+<nav id="tools" aria-label="View controls"><button id="reset" type="button" title="Reset view (R)">Reset view</button><button id="plan-view" type="button" aria-pressed="false" title="Plan, everything named (P)">Plan view</button><button id="geometry" type="button" aria-pressed="false">Form: contour</button><button id="dusk" type="button" aria-pressed="false" title="Dusk (N)">Dusk</button><button id="life" type="button" aria-pressed="true" title="Moving population (L)">Life: on</button><button id="relations" type="button" aria-pressed="false">Connections</button><button id="annotate" type="button" aria-pressed="false">Dimensions</button><a href="atlas-table.html">Reading room ↗</a></nav>
 
 <section id="title-block" aria-label="Title block">
   <div class="r big"><div class="l">Sheet</div><div class="v" id="st-frame">—</div></div>

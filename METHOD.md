@@ -44,6 +44,24 @@ Connections are authored analytical hypotheses, hidden by default and available 
 
 The source school is [eel Free School of Architecture](https://eelfreeschoolofarchitecture.com/). Its work, name and authorship remain its own. No school artwork or photography is redistributed in this release.
 
+## The inhabited city
+
+The population and the lighting are read off the same eight measures as the forms. Nothing in the city moves or glows for decoration alone.
+
+| Element | Rule | What it says |
+| --- | --- | --- |
+| Walking figures | `2 × Access` per entity, minimum 2, maximum 12. One per point on a phone, so the ratio holds at half the population instead of truncating the last districts to fit the instance cap | How open the work is, in bodies on the street |
+| Where they walk | Between their own mass and a mass it is connected to, on a lane offset from the centre line, pushed out of every building footprint by the same colliders that stop the player | The connection diagram, walked rather than drawn |
+| Street lamps | `Evidence` lamps per entity, on the kerb of its own footprint | What is documented is lit; an undocumented school stands in the dark |
+| Travelling dots | Two per connection, running the filament curve, visible only when connections are shown | Traffic on a proposed line of descent |
+| Dusk | One switch: key light, sky, environment, fog, exposure, bloom and lamp emission move together | The lamp readings only mean something against a dark city |
+
+The whole population is one instanced draw call, as are the posts, the heads and the pools. The crowd stops when the page is hidden, when `prefers-reduced-motion` is set, and whenever the population is switched off.
+
+## Plan
+
+Plan view solves the camera distance from the measured free rectangle of the screen — the area the masthead, margin, controls, tabs, stamp and credit leave unoccupied — using both half-angles of the frustum, so the entire survey lands inside what is actually visible rather than inside the raw viewport. Where the survey runs diagonally across a portrait screen the sheet is turned, in 15° steps, to whichever angle needs the least distance; the caption states the turn. On a wide sheet every entity is named with its rank; below 700 px, or when the free band is shorter than 300 px, the plan is numbered by rank and the names are read in the index, because 21 names at a readable size would bury the city they describe.
+
 ## Scope of walking
 
 Walking uses an eye-height camera, keyboard or touch joystick, a map, and conservative building-footprint collisions. It is an exterior model walk, not a simulation of enterable rooms, stairs or structural behavior. Atriums are visual voids; collision envelopes do not permit interior circulation.
