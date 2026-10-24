@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>City of the Atlas — Semir Poturak / Svemir</title>
+<meta name="description" content="Twenty-one entities, eight measures, three frames. The same school, surveyed three ways. Built on top of eel Free School of Architecture.">
+<meta name="theme-color" content="#ece6d9">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ece6d9' d='M0 0h32v32H0z'/%3E%3Cpath fill='%23e20a7f' d='M7 25V14h5V7h8v7h5v11z'/%3E%3C/svg%3E">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   CITY OF THE ATLAS — v3 · THE FERRISS SURVEY
+   The page is a drawing sheet. The sheet has a border, crop marks, a
+   margin of notes on the left and a title block at the bottom right.
+   The model lives inside the sheet. Nothing is a card; nothing is round;
+   nothing has a drop shadow. Rules are hairlines, ink on paper.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root{
+  --ink:#141210;            /* drafting ink                              */
+  --ink-70:rgba(20,18,16,.70);
+  --ink-45:rgba(20,18,16,.68);
+  --ink-20:rgba(20,18,16,.20);
+  --ink-10:rgba(20,18,16,.10);
+  --paper:#ece6d9;          /* the sheet                                 */
+  --paper-hi:#f5f1e7;       /* a lighter inlay                           */
+  --pink:#e20a7f;           /* eel. spent on one thing only              */
+  --rule:1px;
+  --sans:system-ui,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"SF Mono",monospace;
+  --geo:Poppins,"Century Gothic",Futura,"Avenir Next",system-ui,sans-serif; /* their face */
+  --m:clamp(14px,2.1vw,30px);   /* sheet margin */
+}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#9fa39b;overflow:hidden;
+     overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+@supports (height:100dvh){html,body{height:100dvh}}
+body{font-family:var(--sans);color:var(--ink);
+     -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+canvas{position:fixed;inset:0;display:block;transform:translateZ(0);touch-action:none;
+       width:100%!important;height:100%!important}
+
+/* ── the sheet: border, crop marks, drafting overlay ──────────────────── */
+#sheet{position:fixed;inset:0;pointer-events:none;z-index:4}
+#sheet svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.hair{fill:none;stroke:var(--ink);stroke-width:1;vector-effect:non-scaling-stroke}
+.hair-faint{fill:none;stroke:rgba(20,18,16,.32);stroke-width:1;
+            vector-effect:non-scaling-stroke}
+.dimtxt{font:500 10px/1 var(--mono);letter-spacing:.09em;
+        fill:var(--ink);text-transform:uppercase}
+
+/* ── typographic primitives, shared by every block on the sheet ───────── */
+.key{font:600 9.5px/1 var(--mono);letter-spacing:.20em;text-transform:uppercase;
+     color:var(--ink-45)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.their{font-family:var(--geo);font-style:italic}
+
+/* ── left margin: the index of the sheet ──────────────────────────────── */
+#margin{position:fixed;left:var(--m);top:var(--m);z-index:6;
+        width:clamp(252px,23vw,330px);
+        background:var(--paper);border:var(--rule) solid var(--ink);
+        max-height:calc(100vh - var(--m)*2);display:flex;flex-direction:column}
+#margin > *{border-bottom:var(--rule) solid var(--ink-20)}
+#margin > *:last-child{border-bottom:0}
+
+.ttl{padding:13px 15px 12px}
+.ttl h1{margin:0;font:700 clamp(17px,1.5vw,21px)/1 var(--sans);
+        letter-spacing:.055em;text-transform:uppercase}
+.ttl h1 em{font-style:normal;color:var(--pink)}
+.ttl .sub{margin-top:9px;font-size:10.5px;line-height:1.52;color:var(--ink-70);
+          letter-spacing:.012em}
+.ttl a{color:inherit;text-decoration-thickness:1px;text-underline-offset:2px}
+.ttl a:hover{color:var(--pink)}
+
+/* frames: a drawing index, one row per sheet */
+#frames{display:flex;flex-direction:column}
+.fr{all:unset;display:block;cursor:pointer;padding:10px 15px 11px;
+    border-bottom:var(--rule) solid var(--ink-10);position:relative;
+    transition:background .14s ease}
+.fr:last-child{border-bottom:0}
+.fr:hover{background:var(--paper-hi)}
+.fr:focus-visible{outline:2px solid var(--pink);outline-offset:-2px}
+.fr .k{font:600 9px/1 var(--mono);letter-spacing:.2em;color:var(--ink-45)}
+.fr .t{margin-top:5px;font:600 13.5px/1.2 var(--sans);letter-spacing:.01em}
+.fr .w{margin-top:4px;font-size:10px;line-height:1.4;color:var(--ink-70)}
+.fr[aria-pressed="true"]{background:var(--paper-hi)}
+.fr[aria-pressed="true"]::before{content:"";position:absolute;left:0;top:0;bottom:0;
+    width:4px;background:var(--pink)}
+.fr[aria-pressed="true"] .k{color:var(--pink)}
+
+#zoning{padding:12px 15px 13px;font-size:11px;line-height:1.56;color:var(--ink-70);
+        overflow:auto}
+#zoning b{color:var(--ink);font-weight:650}
+
+/* legend: swatch + rule, read as a materials schedule */
+#legend{padding:11px 15px 12px}
+#legend .row{display:grid;grid-template-columns:16px 1fr;gap:9px;align-items:center;
+             font-size:10.5px;line-height:1.3;padding:3px 0;color:var(--ink-70)}
+#legend .sw{height:9px;border:var(--rule) solid var(--ink)}
+#legend .sw.lot{background:none;border-style:dashed;border-color:var(--pink)}
+
+#keys{padding:10px 15px 12px;font-size:10px;line-height:1.75;color:var(--ink-45)}
+kbd{font:600 9.5px/1 var(--mono);border:var(--rule) solid var(--ink-45);
+    padding:2px 5px;color:var(--ink);background:var(--paper-hi)}
+
+/* ── title block: bottom right, the way a drawing is signed ───────────── */
+#title-block{position:fixed;right:var(--m);bottom:var(--m);z-index:6;
+  background:var(--paper);border:var(--rule) solid var(--ink);
+  width:clamp(276px,25vw,352px);font-size:10px}
+#title-block .r{display:grid;grid-template-columns:86px 1fr;
+                border-bottom:var(--rule) solid var(--ink-20)}
+#title-block .r:last-child{border-bottom:0}
+#title-block .l{padding:6px 10px;border-right:var(--rule) solid var(--ink-20);
+   font:600 8.5px/1.3 var(--mono);letter-spacing:.17em;text-transform:uppercase;
+   color:var(--ink-45);display:flex;align-items:center}
+#title-block .v{padding:6px 10px;font-family:var(--mono);
+   font-variant-numeric:tabular-nums;letter-spacing:.015em;
+   display:flex;align-items:center}
+#title-block .big .v{font:650 14px/1.2 var(--sans);letter-spacing:.03em;
+   text-transform:uppercase;font-family:var(--sans)}
+
+/* ── walk button: a stamp, not a pill ─────────────────────────────────── */
+#walk{position:fixed;right:var(--m);top:var(--m);z-index:6;cursor:pointer;
+  background:var(--ink);color:var(--paper);border:var(--rule) solid var(--ink);
+  padding:11px 17px 10px;font:600 10px/1 var(--sans);letter-spacing:.21em;
+  text-transform:uppercase;transition:background .15s ease,color .15s ease}
+#walk:hover{background:var(--pink);border-color:var(--pink)}
+#walk:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
+#walk .ar{margin-left:8px;opacity:.6}
+
+/* ── entity panel: a cut sheet, pinned right ──────────────────────────── */
+#panel{position:fixed;right:var(--m);top:var(--m);z-index:8;
+  width:clamp(300px,30vw,428px);max-height:calc(100vh - var(--m)*2);
+  background:var(--paper);border:var(--rule) solid var(--ink);
+  display:flex;flex-direction:column;overflow:hidden;
+  transform:translateX(calc(100% + var(--m)*1.6));opacity:0;
+  transition:transform .4s cubic-bezier(.22,1,.3,1),opacity .25s ease,visibility .25s;
+  pointer-events:none;visibility:hidden}
+#panel.on{transform:none;opacity:1;pointer-events:auto;visibility:visible}
+#close{all:unset;position:absolute;right:0;top:0;z-index:2;cursor:pointer;
+  width:34px;height:34px;display:grid;place-items:center;font:400 17px/1 var(--sans);
+  color:var(--ink-45);border-left:var(--rule) solid var(--ink-20);
+  border-bottom:var(--rule) solid var(--ink-20)}
+#close:hover{color:var(--paper);background:var(--ink)}
+#pbody{overflow:auto;padding:0}
+#pbody .hd{padding:15px 17px 14px;border-bottom:var(--rule) solid var(--ink)}
+#pbody .hd .k{font:600 9px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;
+  color:var(--pink)}
+#pbody h2{margin:8px 44px 0 0;font:650 clamp(17px,1.7vw,22px)/1.14 var(--sans);
+  letter-spacing:.005em}
+#pbody .seat{margin-top:6px;font:500 10px/1.4 var(--mono);color:var(--ink-45);
+  letter-spacing:.02em}
+#pbody .bd{padding:0 17px 19px}
+.cap{margin:16px 0 9px;padding-top:12px;border-top:var(--rule) solid var(--ink-20);
+  font:600 9px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;
+  color:var(--ink-45)}
+#pbody p{margin:0;font-size:11.5px;line-height:1.62;color:var(--ink-70)}
+#pbody p b{color:var(--ink)}
+.quote{margin:0;padding:10px 13px;background:var(--paper-hi);
+  border-left:3px solid var(--pink);font-family:var(--geo);font-style:italic;
+  font-size:11.5px;line-height:1.56;color:var(--ink)}
+
+.ranks{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--ink-20);
+  border:var(--rule) solid var(--ink-20)}
+.ranks > div{background:var(--paper);padding:9px 10px 10px}
+.ranks .hi{background:var(--ink);color:var(--paper)}
+.ranks .lb{font:600 8.5px/1 var(--mono);letter-spacing:.18em;opacity:.6}
+.ranks .vl{margin-top:5px;font:650 21px/1 var(--mono);font-variant-numeric:tabular-nums}
+.ranks .hi .vl{color:var(--pink)}
+.var{margin-top:10px;font-size:10.5px;line-height:1.45;color:var(--ink-70)}
+.var .n{font:650 15px/1 var(--mono);color:var(--ink);margin-right:5px}
+
+/* measures: a stepped profile, so the panel repeats the building's section */
+.prof{display:flex;flex-direction:column-reverse;gap:2px}
+.prof .st{display:grid;grid-template-columns:1fr 84px 16px;gap:9px;align-items:center}
+.prof .bar{height:11px;background:var(--ink-10);position:relative}
+.prof .bar i{position:absolute;right:0;top:0;bottom:0;background:var(--ink);display:block}
+.prof .st.p0 .bar i{background:var(--pink)}
+.prof .nm{font-size:10.5px;color:var(--ink-70);text-align:right;letter-spacing:.01em}
+.prof .vv{font:600 11px/1 var(--mono);text-align:right}
+
+/* ── floating label on hover ──────────────────────────────────────────── */
+#label{position:fixed;z-index:9;pointer-events:none;opacity:0;
+  background:var(--ink);color:var(--paper);padding:5px 9px 4px;
+  font:600 9.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;
+  transition:opacity .11s ease;white-space:nowrap}
+#label.on{opacity:1}
+
+/* ── walk HUD ─────────────────────────────────────────────────────────── */
+#cross{position:fixed;left:50%;top:50%;z-index:5;transform:translate(-50%,-50%);
+  width:19px;height:19px;opacity:0;transition:opacity .3s ease;pointer-events:none}
+#cross::before,#cross::after{content:"";position:absolute;background:rgba(20,18,16,.62)}
+#cross::before{left:50%;top:0;bottom:0;width:1px;transform:translateX(-50%)}
+#cross::after{top:50%;left:0;right:0;height:1px;transform:translateY(-50%)}
+body.walking #cross{opacity:1}
+
+#near{position:fixed;left:50%;bottom:calc(var(--m) + 8px);z-index:6;
+  transform:translate(-50%,10px);opacity:0;transition:opacity .22s ease,transform .22s ease;
+  background:var(--paper);border:var(--rule) solid var(--ink);
+  padding:9px 15px 10px;text-align:center;min-width:250px;pointer-events:none}
+#near.on{opacity:1;transform:translate(-50%,0)}
+#near .n{font:650 13px/1.15 var(--sans);letter-spacing:.02em}
+#near .m{margin-top:5px;font:500 9.5px/1 var(--mono);color:var(--ink-45);
+  letter-spacing:.06em}
+
+#exit{position:fixed;left:var(--m);top:var(--m);z-index:6;opacity:0;
+  transition:opacity .25s ease;pointer-events:none;
+  background:var(--paper);border:var(--rule) solid var(--ink);padding:9px 13px;
+  font:500 10px/1.6 var(--mono);letter-spacing:.04em;color:var(--ink-70)}
+body.walking #exit{opacity:1}
+body.walking #margin,body.walking #walk,body.walking #panel,
+body.walking #label,body.walking #tabs{opacity:0;pointer-events:none;
+  transition:opacity .25s ease}
+
+/* ── boot & failure ───────────────────────────────────────────────────── */
+#boot{position:fixed;inset:0;z-index:20;background:var(--paper);display:grid;
+  place-items:center;transition:opacity .6s ease}
+#boot.off{opacity:0;pointer-events:none}
+#boot .in{text-align:center}
+#boot .t{font:700 clamp(19px,2.3vw,30px)/1 var(--sans);letter-spacing:.09em;
+  text-transform:uppercase}
+#boot .t em{font-style:normal;color:var(--pink)}
+#boot .s{margin-top:13px;font:500 10px/1 var(--mono);letter-spacing:.22em;
+  text-transform:uppercase;color:var(--ink-45)}
+#nowebgl{position:fixed;inset:0;z-index:21;background:var(--paper);display:none;
+  place-items:center;padding:30px;text-align:center;font-size:13px;line-height:1.6}
+
+/* Every piece of fixed furniture gets its own compositing layer. An
+   un-promoted position:fixed box can be left stale when the viewport
+   settles, which punched two holes in every headless proof. */
+#margin,#title-block,#walk,#panel,#near,#exit,#label,#cross,#sheet,#boot{
+  transform:translateZ(0);backface-visibility:hidden}
+#panel{transform:translate3d(calc(100% + var(--m)*1.6),0,0)}
+#panel.on{transform:translateZ(0)}
+#near{transform:translate3d(-50%,10px,0)}
+#near.on{transform:translate3d(-50%,0,0)}
+#cross{transform:translate3d(-50%,-50%,0)}
+
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms !important}}
+@media (max-width:1040px){
+  #margin{width:min(320px,calc(100vw - var(--m)*2));max-height:52vh}
+  #title-block{display:none}
+  #panel{width:calc(100vw - var(--m)*2)}
+}
+
+/* =======================================================================
+   THE PHONE SHEET
+   A sheet margin presumes a margin. 390 px has none, so the same index is
+   re-set as furniture a thumb can reach: the three frames across the bottom,
+   the notes behind one tap, the cut sheet as a drawer over the model. The
+   drawing keeps its border and crop marks - it is still a sheet, portrait.
+   ======================================================================= */
+#tabs,#notes-btn,#stick,#exit-btn{display:none}
+
+/* a phone held sideways is still a phone: 844x390 is short, not wide, and a
+   560 px tall viewport under 1000 px wide is never a desk */
+@media (max-width:1040px){
+  :root{
+    --m:10px;
+    --sa-b:env(safe-area-inset-bottom,0px);
+    --tabs:52px;
+  }
+  #title-block{display:none}
+
+  /* -- top: title, collapsed. the notes live behind it --------------- */
+  #margin{left:var(--m);right:var(--m);top:calc(var(--m) + env(safe-area-inset-top,0px));
+    width:auto;max-height:62px;overflow:hidden;
+    transition:max-height .34s cubic-bezier(.22,1,.3,1)}
+  #margin > #frames,#margin > #zoning,#margin > #legend,
+  #margin > #keys,#margin > #touch-keys{display:none}
+  body.notes-open #margin{max-height:calc(100dvh - var(--tabs) - var(--sa-b) - var(--m)*4);
+    overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+  body.notes-open #margin > #zoning,body.notes-open #margin > #legend,
+  body.notes-open #margin > #keys{display:block}
+  body.notes-open.touch #margin > #touch-keys{display:block}
+  body.notes-open #margin > #frames{display:flex}
+  .ttl{padding:11px 13px 11px;position:relative}
+  .ttl h1{font-size:15px;letter-spacing:.05em}
+  .ttl .sub{display:none;margin-top:8px}
+  body.notes-open .ttl .sub{display:block;padding-right:74px}
+  /* the keyboard legend is only true where there is a keyboard */
+  body.touch.notes-open #margin > #keys{display:none}
+  #notes-btn{all:unset;display:block;position:absolute;right:0;top:0;height:60px;
+    width:74px;cursor:pointer;border-left:var(--rule) solid var(--ink);
+    font:600 9px/60px var(--mono);letter-spacing:.17em;text-transform:uppercase;
+    color:var(--ink-45);text-align:center}
+  #notes-btn::after{content:"Notes"}
+  #notes-btn[aria-expanded="true"]{background:var(--ink);color:var(--paper)}
+  #notes-btn[aria-expanded="true"]::after{content:"Close"}
+  /* the frame rows in the drawer are targets, not lines of a list */
+  .fr{padding:13px 15px 14px;min-height:48px}
+
+  /* -- bottom: the three frames, always one tap away ----------------- */
+  #tabs{display:grid;grid-template-columns:repeat(3,1fr);
+    position:fixed;left:var(--m);right:var(--m);z-index:7;
+    bottom:calc(var(--m) + var(--sa-b));
+    background:var(--paper);border:var(--rule) solid var(--ink);
+    transform:translateZ(0)}
+  .tb{all:unset;display:flex;flex-direction:column;justify-content:center;gap:4px;
+    cursor:pointer;padding:9px 6px 10px;min-height:var(--tabs);text-align:center;
+    border-right:var(--rule) solid var(--ink-20);position:relative}
+  .tb:last-child{border-right:0}
+  .tb .k{font:600 8.5px/1 var(--mono);letter-spacing:.2em;color:var(--ink-45)}
+  .tb .t{font:600 10px/1.15 var(--sans);letter-spacing:.01em;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tb[aria-pressed="true"]{background:var(--ink)}
+  .tb[aria-pressed="true"] .k{color:var(--pink)}
+  .tb[aria-pressed="true"] .t{color:var(--paper)}
+
+  /* -- walk stamp: above the tabs, right ----------------------------- */
+  #walk{top:auto;right:var(--m);
+    bottom:calc(var(--m)*2 + var(--sa-b) + var(--tabs));
+    padding:10px 14px 9px;font-size:9.5px;letter-spacing:.17em}
+
+  /* -- the cut sheet becomes a drawer -------------------------------- */
+  #panel{left:var(--m);right:var(--m);width:auto;top:auto;
+    bottom:calc(var(--m)*2 + var(--sa-b) + var(--tabs));
+    max-height:min(66dvh,calc(100dvh - 190px));
+    transform:translate3d(0,calc(100% + var(--m)*3),0)}
+  #panel.on{transform:translateZ(0)}
+  #pbody{touch-action:pan-y;-webkit-overflow-scrolling:touch}
+  #close{width:44px;height:44px;font-size:19px}
+  #pbody h2{margin-right:50px;font-size:18px}
+  .prof .st{grid-template-columns:1fr 64px 18px;gap:7px}
+  .ranks .vl{font-size:19px}
+  #label{display:none}
+
+  #near{bottom:calc(var(--m)*2 + var(--sa-b) + var(--tabs));min-width:0;
+    left:var(--m);right:var(--m);transform:translate3d(0,10px,0)}
+  #near.on{transform:translateZ(0)}
+}
+
+/* -- touch: the keyboard legend is a lie, and walking needs a stick ---- */
+body.touch #keys{display:none}
+body.touch #exit{display:none}
+body.touch.walking #exit-btn{display:block;opacity:1}
+#exit-btn{all:unset;position:fixed;left:var(--m);z-index:7;cursor:pointer;
+  top:calc(var(--m) + env(safe-area-inset-top,0px));
+  background:var(--paper);border:var(--rule) solid var(--ink);padding:11px 15px 10px;
+  font:600 9.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;
+  opacity:0;transition:opacity .25s ease}
+#touch-keys{display:none;padding:10px 15px 12px;font-size:10px;line-height:1.7;
+  color:var(--ink-45)}
+body.touch #touch-keys{display:block}
+body.touch #touch-keys b{color:var(--ink);font-weight:650}
+
+/* the stick: lower left, under the thumb, drawn as a survey target */
+body.touch.walking #stick{display:block;opacity:1}
+#stick{position:fixed;z-index:7;left:calc(var(--m) + 14px);
+  bottom:calc(var(--m) + env(safe-area-inset-bottom,0px) + 34px);
+  width:104px;height:104px;border-radius:50%;opacity:0;
+  border:var(--rule) solid var(--ink-45);background:rgba(236,230,217,.30);
+  transition:opacity .3s ease,background .2s ease;touch-action:none;
+  transform:translateZ(0)}
+#stick.live{background:rgba(236,230,217,.52)}
+#stick::before,#stick::after{content:"";position:absolute;background:var(--ink-20)}
+#stick::before{left:50%;top:9px;bottom:9px;width:1px;transform:translateX(-50%)}
+#stick::after{top:50%;left:9px;right:9px;height:1px;transform:translateY(-50%)}
+#stick i{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;
+  border-radius:50%;background:var(--ink);border:2px solid var(--paper)}
+#stick.live i{background:var(--pink)}
+body.touch.walking #cross{opacity:.5}
+
+/* Final interaction pass: semantic controls, accurate target sizes, readable notes. */
+button{box-sizing:border-box!important}
+button:focus-visible,a:focus-visible,select:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+#walk,#exit-btn,#reset{min-height:44px}
+#close{width:44px;height:44px;color:var(--ink)}
+#exit-btn{display:none;pointer-events:none}
+body.walking #exit-btn{display:block;opacity:1;pointer-events:auto}
+body.walking #exit{top:calc(var(--m) + 54px)}
+body.walking #margin,body.walking #walk,body.walking #panel,body.walking #tabs,body.walking #title-block,body.walking #tools{visibility:hidden}
+#tools{position:fixed;right:var(--m);top:calc(var(--m) + 54px);z-index:6;display:flex;gap:6px}
+#tools button,#tools a{display:grid;place-items:center;min-height:44px;padding:0 12px;background:var(--paper);border:1px solid var(--ink);color:var(--ink);font:600 10px var(--mono);text-decoration:none;cursor:pointer}
+#entity-index{padding:12px 15px;display:flex;flex-direction:column;gap:7px}
+#entity-index label{font:600 10px var(--mono)}
+#entity-index select{min-height:44px;max-width:100%;width:100%;background:var(--paper-hi);color:var(--ink);border:1px solid var(--ink-45);font:12px var(--sans);padding:8px}
+#entity-index .source-note{font-size:11px;line-height:1.5;color:var(--ink-70)}
+#entity-index a{color:inherit;text-underline-offset:3px}
+.ttl h1 em{color:#b80766}
+#pbody .bd{font-size:13px}#pbody p{font-size:13px;line-height:1.65}
+#pbody a{color:inherit;text-underline-offset:3px}
+.ranks .hi .vl{color:var(--paper)}
+.tb[aria-pressed="true"] .k{color:#ff9fcf}
+.fr[aria-pressed="true"] .k,#pbody .hd .k{color:#9d0757}
+#minimap{display:none;position:fixed;right:var(--m);bottom:calc(var(--m) + env(safe-area-inset-bottom,0px));width:168px;z-index:5;background:var(--paper);border:1px solid var(--ink);padding:8px;pointer-events:none}
+body.walking #minimap{display:block}
+#minimap svg{display:block;width:100%;height:125px}
+#minimap .caption{font:10px/1.4 var(--mono);color:var(--ink-70)}
+#nowebgl .fallback{max-width:480px}#nowebgl a{display:inline-block;margin-top:16px;padding:12px 18px;background:var(--ink);color:var(--paper)}
+#noscript{position:fixed;inset:0;background:var(--paper);z-index:30;padding:10vh 8vw;line-height:1.7}
+@media (max-width:1040px){
+ :root{--tabs:60px}
+ #margin{max-height:63px}
+ .ttl{min-height:61px;display:flex;flex-direction:column;justify-content:center;padding-right:85px}
+ .ttl h1{font-size:clamp(13px,3.8vw,17px);line-height:1.12;letter-spacing:.02em}
+ body.notes-open .ttl .sub{padding-right:0}
+ #notes-btn{height:61px;line-height:61px;color:var(--ink)}
+ #margin > #entity-index{display:none}body.notes-open #margin > #entity-index{display:flex}
+ .tb{min-height:var(--tabs);padding:8px 5px}.tb .t{font-size:10px;white-space:normal;line-height:1.15}
+ #walk{bottom:calc(var(--m)*2 + var(--sa-b) + var(--tabs));min-height:44px;padding:10px}
+ #tools{top:auto;right:auto;left:var(--m);bottom:calc(var(--m)*2 + var(--sa-b) + var(--tabs));gap:5px}
+ #tools button,#tools a{padding:0 8px;font-size:9px}
+ #panel{max-height:calc(100dvh - 180px)}
+ #near{bottom:calc(var(--m) + var(--sa-b) + 158px);left:auto;right:var(--m);max-width:185px;padding:8px;transform:none}
+ #near .n{font-size:11px}#near .m{font-size:8px;line-height:1.4}
+ #minimap{width:152px}#minimap svg{height:112px}
+}
+@media (max-height:480px){body.walking #near{top:var(--m);bottom:auto;max-width:210px}#minimap{width:132px}#minimap svg{height:92px}}
+</style>
+<link rel="stylesheet" href="./hud.css">
+</head>
+<body>
+<a class="skip" href="atlas-table.html">Skip to the reading room</a>
+<header id="masthead"><a class="wordmark" href="./">CITY OF THE <b>ATLAS</b><span>AN OPEN ARCHITECTURAL EXPERIENCE</span></a><div class="author">SEMIR POTURAK <span>/ SVEMIR</span></div></header>
+<div id="exhibition"><span class="eyebrow">01—03 / AN ATLAS OF ARCHITECTURAL EDUCATION</span><h2>Different questions.<br>Different worlds.</h2><p>21 entities. 8 measures. A city that changes<br>with the questions you ask of it.</p><button id="feature" type="button">Explore the eel pavilion <span>↗</span></button></div>
+<div id="status-strip"><span id="selection-name">Drag to explore · select a form</span><span id="current-question">Ontological depth</span></div>
+<footer id="credit">Independent study inspired by <a href="https://eelfreeschoolofarchitecture.com/" target="_blank" rel="noopener">eel Free School of Architecture ↗</a><span>Not affiliated with or endorsed by the school. Scores are authored interpretations.</span></footer>
+
+<div id="boot"><div class="in">
+  <div class="t">City of the <em>Atlas</em></div>
+  <div class="s" id="bootmsg">Surveying · 21 entities · 3 frames</div>
+</div></div>
+
+<div id="nowebgl" role="status"><div class="fallback"><h2>The atlas is also a reading room.</h2><p id="fallback-message">The 3D view is unavailable. All 21 entities, measures and proposed contributions are available in the index.</p><a href="atlas-table.html">Open the complete index →</a><br><button onclick="location.reload()">Retry 3D</button></div></div>
+<noscript><div id="noscript"><h1>City of the Atlas</h1><p>An independent prototype built on top of eel Free School of Architecture.</p><a href="atlas-table.html">Read the complete atlas without JavaScript →</a></div></noscript>
+
+<!-- the drafting overlay: border, crop marks, datum, dimension line -->
+<div id="sheet"><svg id="svg" aria-hidden="true">
+  <g id="border"></g>
+  <g id="annot"></g>
+</svg></div>
+
+<aside id="margin">
+  <div class="ttl">
+    <h1>City of the <em>Atlas</em></h1>
+    <div class="sub">An open-source experience by <b>Semir Poturak / Svemir</b>, inspired by <a href="https://eelfreeschoolofarchitecture.com/">eel Free School of Architecture</a>. Independently made; not affiliated with, commissioned by, or endorsed by the school. Scores are authored interpretations.</div>
+    <button id="notes-btn" type="button" aria-expanded="false" aria-label="About and controls"></button>
+  </div>
+  <div id="frames"></div>
+  <div id="zoning"></div>
+  <div id="entity-index"><label for="entity-select">Explore the 21 entities</label><select id="entity-select"><option value="">Choose an entity…</option></select><div class="source-note">Uncalibrated study · <a href="atlas-table.html">Measures, notes & proposals →</a></div></div>
+  <div id="drawer-tools"><button type="button" data-control="plan-view">Plan view</button><button type="button" data-control="relations">Toggle connections</button><button type="button" data-control="annotate">Toggle dimensions</button><a href="METHOD.md">How forms encode data ↗</a><a href="https://github.com/3esign/city-of-the-atlas" target="_blank" rel="noopener">Open source ↗</a></div>
+  <div id="legend">
+    <div class="row"><span class="sw" style="background:#e20a7f"></span>eel and its satellites</div>
+    <div class="row"><span class="sw" style="background:#e3dccb"></span>schools now operating</div>
+    <div class="row"><span class="sw" style="background:#3a3832"></span>historical experiments / archived editions</div>
+    <div class="row"><span class="sw" style="background:#2b3038"></span>the regulatory baseline</div>
+    <div class="row"><span class="sw lot"></span>reserved plot — our proposed contribution</div>
+  </div>
+  <div id="keys">
+    <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> resurvey &nbsp;·&nbsp; drag to orbit &nbsp;·&nbsp; wheel to zoom<br>
+    <kbd>F</kbd> walk at eye height &nbsp;·&nbsp; <kbd>Esc</kbd> return to the model<br>
+    <kbd>R</kbd> reset &nbsp;·&nbsp; arrows orbit &nbsp;·&nbsp; <kbd>+</kbd> <kbd>−</kbd> zoom<br>
+    height = standing in the active frame · contours = eight measures · atrium = access
+  </div>
+  <div id="touch-keys">
+    <b>Drag</b> to orbit · <b>pinch</b> to zoom · <b>tap</b> a mass for its section<br>
+    <b>Walk the model</b> for eye height: stick to walk, drag to look<br>
+    height = standing in the active frame · contours = eight measures · atrium = access
+  </div>
+</aside>
+
+<nav id="tabs" aria-label="Frames"></nav>
+
+<button id="walk" type="button">Enter / walk<span class="ar">→</span></button>
+<nav id="tools" aria-label="View controls"><button id="reset" type="button" title="Reset view (R)">Reset view</button><button id="plan-view" type="button">Plan view</button><button id="geometry" type="button" aria-pressed="false">Form: contour</button><button id="relations" type="button" aria-pressed="false">Connections</button><button id="annotate" type="button" aria-pressed="false">Dimensions</button><a href="atlas-table.html">Reading room ↗</a></nav>
+
+<section id="title-block" aria-label="Title block">
+  <div class="r big"><div class="l">Sheet</div><div class="v" id="st-frame">—</div></div>
+  <div class="r"><div class="l">No.</div><div class="v" id="st-sheet">01 / 03</div></div>
+  <div class="r"><div class="l">Surveyed</div><div class="v">21 entities · 8 measures</div></div>
+  <div class="r"><div class="l">Scale</div><div class="v" id="st-scale">Model units · not built dimensions</div></div>
+  <div class="r"><div class="l">Datum</div><div class="v">± 0.00 — the sheet</div></div>
+  <div class="r"><div class="l">Drawn</div><div class="v">Semir Poturak / Svemir · prototype</div></div>
+</section>
+
+<div id="panel" role="dialog" aria-label="Entity">
+  <button id="close" type="button" aria-label="Close">✕</button>
+  <div id="pbody"></div>
+</div>
+
+<div id="label"></div>
+<div id="cross"></div>
+<div id="near"><div class="n"></div><div class="m"></div></div>
+<button id="exit-btn" type="button">← Model</button>
+<div id="stick" aria-hidden="true"><i></i></div>
+<div id="exit"><kbd>Esc</kbd> return to the model<br><kbd>W A S D</kbd> walk · <kbd>Shift</kbd> run</div>
+<aside id="minimap" aria-label="Walking orientation map"><svg viewBox="-510 -510 1020 1020" aria-hidden="true"><rect x="-490" y="-490" width="980" height="980" fill="none" stroke="#b4ae9f" stroke-width="6"/><g id="map-buildings"></g><path id="map-player" d="M0 -25L17 19L0 10L-17 19Z" fill="#141210" stroke="#ece6d9" stroke-width="6"/></svg><div class="caption">N ↑ · You ▲ · eel <span style="color:#9d0757">■</span></div></aside>
+
+<script type="importmap">
+{"imports":{"three":"./vendor/three.module.min.js"}}
+</script>
+<script>
+// Keep a usable route when a module cannot load or graphics fail during startup.
+window.addEventListener('error', function(e) {
+  if (e.target && e.target.tagName === 'SCRIPT' || e.error) {
+    document.getElementById('nowebgl').style.display='grid';
+    document.getElementById('boot').classList.add('off');
+  }
+}, true);
+</script>
+<script type="module" src="./city.js"></script>
+</body>
+</html>

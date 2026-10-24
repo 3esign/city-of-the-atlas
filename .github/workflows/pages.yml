@@ -1,0 +1,35 @@
+name: Publish architectural atlas
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node build.js
+      - run: node tests/check.cjs
+      - uses: actions/configure-pages@v5
+      - name: Assemble static release
+        run: |
+          mkdir -p _site/vendor
+          cp index.html hud.css city.js data.js atlas-table.html city.html .nojekyll LICENSE NOTICE.md METHOD.md RESEARCH.md _site/
+          cp vendor/three.module.min.js vendor/THREE-LICENSE.txt _site/vendor/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
