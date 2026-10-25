@@ -701,9 +701,9 @@ const WEIGHTS = [
   { aut:0, wld:1, mat:1, epi:0, acc:0, evi:0, rec:0, cos:3 }
 ];
 const weight = (fi, k) => WEIGHTS[fi][k] || 0;
-const ENGINE = { on: false, lens: -1 };
+const ENGINE = { on: true, lens: -1 };
 const engineGroup = new THREE.Group();
-engineGroup.visible = false;
+engineGroup.visible = true;
 scene.add(engineGroup);
 const ENG_R = 330, ENG_BASE = 158, ENG_STEP = 46;
 
@@ -923,6 +923,10 @@ function stepEngine(dt) {
   if (frames % 6 === 0) renderEngineReadout();
 }
 paintEngineSigns();
+/* the engine is the default reading, not an easter egg: the grammar hangs
+   over the city from the first frame; E folds it away for the plain view.
+   The button state lands on the first frame, once the whole module exists. */
+requestAnimationFrame(() => toggleEngine(true));
 
 /* ═══════════════════════════════════════════════════════════════════════
    THE EEL QUARTER — 11 published programmes around the eel mass.
@@ -1391,6 +1395,7 @@ function stepCamTween(now) {
 let drag = null;
 const pts = new Map();          // live pointers on the canvas
 let pinch = 0;                  // last two-finger separation, px
+let pinchMid = null;            // last two-finger midpoint, for the pan it carries
 let suppressPick = false;
 let userMoved = false;          // once the camera is theirs, stop re-framing it
 
@@ -1400,13 +1405,19 @@ renderer.domElement.addEventListener("pointerdown", e => {
   renderer.domElement.setPointerCapture(e.pointerId);
   if (MODE === "walk") { walkDown(e); return; }
   camTween = null;                    // a hand on the canvas owns the camera
-  if (pts.size === 2) { pinch = pinchDist(); drag = null; suppressPick = true; return; }
-  drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId, touch: e.pointerType !== "mouse" };
+  if (pts.size === 2) { pinch = pinchDist(); pinchMid = midPt(); drag = null; suppressPick = true; return; }
+  // a mouse has more than one hand: left orbits, right / middle / shift pans
+  const pan = e.pointerType === "mouse" && (e.button === 2 || e.button === 1 || e.shiftKey);
+  drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId, touch: e.pointerType !== "mouse", pan };
   renderer.domElement.setPointerCapture(e.pointerId);
 });
 function pinchDist() {
   const [a, b] = [...pts.values()];
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+function midPt() {
+  const [a, b] = [...pts.values()];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 addEventListener("pointermove", e => {
   if (pts.has(e.pointerId)) pts.get(e.pointerId).x = e.clientX, pts.get(e.pointerId).y = e.clientY;
@@ -1415,27 +1426,37 @@ addEventListener("pointermove", e => {
     else walkMove(e);
     return;
   }
-  if (pts.size === 2) {                       // pinch: zoom, and tilt with the pair
-    const d = pinchDist();
+  if (pts.size === 2) {                       // pinch: zoom; the pair's travel: pan
+    const d = pinchDist(), m = midPt();
     if (pinch && d > 1) { zoomBy(pinch / d); userMoved = true; }
-    pinch = d;
+    if (pinchMid) {
+      const pdx = m.x - pinchMid.x, pdy = m.y - pinchMid.y;
+      if (pdx || pdy) { panBy(pdx, pdy); userMoved = true; if (Math.abs(pdx) + Math.abs(pdy) > 6) leavePlanUI(); }
+    }
+    pinch = d; pinchMid = m;
     return;
   }
   if (!drag || e.pointerId !== drag.id) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.moved += Math.abs(dx) + Math.abs(dy);
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.pan) {                             // the stance moves, the view angle holds
+    panBy(dx, dy); userMoved = true;
+    if (drag.moved > 10) leavePlanUI();
+    return;
+  }
   // a thumb travels further than a mouse for the same intent
   const g = drag.touch ? 1.45 : 1;
   orbit.az -= dx * 0.0045 * g;
   orbit.pol = Math.max(0.10, Math.min(1.50, orbit.pol - dy * 0.0035 * g));
-  drag.x = e.clientX; drag.y = e.clientY; userMoved = true;
+  userMoved = true;
   if (drag.moved > 10) leavePlanUI();   // the moment they tilt it, it is no longer a plan
   applyOrbit();
 });
 function endPointer(e) {
   if (e.type === 'pointercancel') suppressPick = true;
   pts.delete(e.pointerId);
-  if (pts.size < 2) pinch = 0;
+  if (pts.size < 2) { pinch = 0; pinchMid = null; }
   if (MODE === "walk") { walkUp(e); return; }
   if (drag && e.pointerId === drag.id) { lastDrag = drag; drag = null; }
 }
@@ -1447,6 +1468,22 @@ function zoomBy(f) {
   orbit.dist = Math.max(70, Math.min(1800, orbit.dist * f));
   applyOrbit();
 }
+
+/* ── pan: the third verb of the camera ─────────────────────────────────
+   Orbit turns the head, zoom changes the stride, pan moves the stance.
+   Grab-the-model semantics: the ground under the hand follows it, so the
+   aim slides opposite the drag, projected on the ground plane. The clamp
+   keeps the city one firm gesture away no matter how far the aim wanders.
+   Mouse: right-drag, middle-drag or shift-drag. Thumb: a two-finger drag
+   alongside the pinch it already owns. */
+function panBy(dx, dy) {
+  const s = 2 * orbit.dist * Math.tan(camera.fov * Math.PI / 360) / VH;
+  const rx = Math.cos(orbit.az), rz = -Math.sin(orbit.az);   // camera right
+  const ux = Math.sin(orbit.az),  uz = Math.cos(orbit.az);   // ground, toward the eye
+  orbit.tx = Math.max(-700, Math.min(700, orbit.tx + (-rx * dx + ux * dy) * s));
+  orbit.tz = Math.max(-700, Math.min(700, orbit.tz + ( rz * dx + uz * dy) * s));
+  applyOrbit();
+}
 renderer.domElement.addEventListener("wheel", e => {
   if (MODE !== "orbit") return;
   e.preventDefault();
@@ -1454,6 +1491,8 @@ renderer.domElement.addEventListener("wheel", e => {
   zoomBy(1 + Math.sign(e.deltaY) * 0.1);
   userMoved = true;
 }, { passive: false });
+// the right button belongs to the pan, not to a menu the city never uses
+renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
 
 /* ── walk: eye height, head bob, the model from inside ────────────────── */
 const EYE = 1.70;

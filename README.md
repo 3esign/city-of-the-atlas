@@ -55,6 +55,7 @@ Publication is deliberately manual: set the repository's Pages source to **GitHu
 | --- | --- | --- |
 | Guided tour | Tour; T | Tour, in About / index |
 | Orbit | Drag; arrow keys | One-finger drag |
+| Pan | Right-drag, middle-drag or shift-drag | Two-finger drag |
 | Zoom | Wheel; + / − | Pinch |
 | Change frame | Bottom tabs; 1 / 2 / 3 | Bottom tabs |
 | Select | Click a form; About / index | Tap a form; About / index |
@@ -63,7 +64,7 @@ Publication is deliberately manual: set the repository's Pages source to **GitHu
 | Look | Pointer lock or drag | Drag outside joystick |
 | Exit walk | Esc; Model button | Model button |
 | Plan, everything named | Plan view; P | Plan view |
-| The engine — the arithmetic, on show | Engine; E | About / index → The engine |
+| The engine — the arithmetic, on show | Engine; E — **on by default** | About / index → The engine |
 | Day / dusk | Dusk; N | Day / dusk, in About / index |
 | Population on / off | Life; L | About / index |
 | Reset | Reset view; R | Reset view |

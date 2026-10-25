@@ -45,4 +45,13 @@ for(const s of['const WEIGHTS','function toggleEngine','function setLens','stepE
                'refreshEngineLines','renderEngineReadout','?engine','function engineFormula'])
   assert(cj.includes(s),`engine wiring missing ${s}`);
 assert(cj.includes('aria-pressed'),'engine button reflects state');
+/* the camera has three verbs now: orbit, zoom, pan — and the engine is the
+   default reading, not an easter egg */
+assert(cj.includes('function panBy'),'pan: the third verb of the camera missing');
+assert(cj.includes('pinchMid'),'two-finger pan missing');
+assert(cj.includes('contextmenu'),'right-drag must not raise a menu over the pan');
+assert(html.includes('shift-drag or right-drag to pan'),'desktop pan hint missing');
+assert(html.includes('two fingers</b> to pan'),'touch pan hint missing');
+assert(/const ENGINE = \{ on: true/.test(cj),'engine must be the default reading');
+assert(cj.includes('() => toggleEngine(true)'),'engine state must be applied on the first frame');
 console.log('PASS: dataset ranges, frame bounds, DOM identity, local links, offline bundle, reading room, attribution and dependency license.');
