@@ -414,10 +414,45 @@ body.walking #minimap{display:block}
 </head>
 <body>
 <a class="skip" href="atlas-table.html">Skip to the reading room</a>
-<header id="masthead"><a class="wordmark" href="./">CITY OF THE <b>ATLAS</b><span>AN OPEN ARCHITECTURAL EXPERIENCE</span></a><div class="author">SEMIR POTURAK <span>/ SVEMIR</span></div></header>
+<header id="masthead"><a class="wordmark" href="./">CITY OF THE <b>ATLAS</b><span>AN OPEN ARCHITECTURAL EXPERIENCE</span></a><button class="author" type="button" data-colophon>SEMIR POTURAK <span>/ SVEMIR</span><em>about this experiment ↗</em></button></header>
 <div id="exhibition"><span class="eyebrow">01—03 / AN ATLAS OF ARCHITECTURAL EDUCATION</span><h2>Different questions.<br>Different worlds.</h2><p>21 entities. 8 measures. A city that changes<br>with the questions you ask of it.</p><button id="feature" type="button">Explore the eel pavilion <span>↗</span></button></div>
 <div id="status-strip"><span id="selection-name">Drag to explore · select a form</span><span id="current-question">Ontological depth</span></div>
-<footer id="credit">Independent study inspired by <a href="https://eelfreeschoolofarchitecture.com/" target="_blank" rel="noopener">eel Free School of Architecture ↗</a><span>Not affiliated with or endorsed by the school. Scores are authored interpretations.</span></footer>
+<footer id="credit">Independent study inspired by <a href="https://eelfreeschoolofarchitecture.com/" target="_blank" rel="noopener">eel Free School of Architecture ↗</a> · <a href="?about" data-colophon>About this experiment</a><span>Not affiliated with or endorsed by the school. Scores are authored interpretations.</span></footer>
+
+<div id="colophon" role="dialog" aria-modal="true" aria-label="About this experiment">
+  <div class="co-sheet">
+    <button id="co-close" type="button" aria-label="Close">✕</button>
+    <div class="co-head">
+      <span class="key">Colophon · an open experiment</span>
+      <h2>One school,<br> surveyed three ways.</h2>
+      <p class="co-lede">A speculative city built from a question: what if the reading of an architectural school were an instrument you could walk through, argue with, and change?</p>
+    </div>
+    <div class="co-cols">
+      <section>
+        <h3>The experiment</h3>
+        <p>Twenty-one entities of architectural education — schools, satellites, historical experiments and the regulatory baseline — are given built form by eight authored measures. Three frames ask three different questions of the same data, and the city rearranges itself in answer. Every score is published, every formula is documented, and every disagreement with them is welcome: the instrument exists so that the reading can be contested.</p>
+      </section>
+      <section>
+        <h3>Who made it</h3>
+        <p><b>Semir Poturak</b> — architect, university educator and PhD researcher working on architectural education, computation and fabrication. The city was drawn, tested and verified inside <b>Svemir</b>, his open working universe in which several AI minds plan, build and check one another's work in parallel. This project is one public record of what that collaboration can produce.</p>
+      </section>
+      <section>
+        <h3>Independence</h3>
+        <p>Inspired by <a href="https://eelfreeschoolofarchitecture.com/" target="_blank" rel="noopener">eel Free School of Architecture</a>, whose published ideas set the questions. It is independently made: not affiliated with, commissioned by, or endorsed by the school. Scores and relationships are provisional interpretations by the author — a basis for conversation, not institutional ratings.</p>
+      </section>
+      <section>
+        <h3>Collaboration</h3>
+        <p>The entire instrument is open source under the MIT license. Correct a score, propose an entity, add a frame, or fork the whole city for another field of knowledge. <a href="https://github.com/3esign/city-of-the-atlas" target="_blank" rel="noopener">Repository ↗</a> · <a href="https://github.com/3esign/city-of-the-atlas/issues" target="_blank" rel="noopener">Start a conversation ↗</a></p>
+      </section>
+    </div>
+    <div class="co-facts">
+      <div><span class="key">Status</span><b>Working prototype</b></div>
+      <div><span class="key">License</span><b>MIT · open source</b></div>
+      <div><span class="key">Runtime</span><b>Local only · no CDN</b></div>
+      <div><span class="key">Privacy</span><b>No analytics · no trackers</b></div>
+    </div>
+  </div>
+</div>
 
 <div id="boot"><div class="in">
   <div class="t">City of the <em>Atlas</em></div>
@@ -442,7 +477,7 @@ body.walking #minimap{display:block}
   <div id="frames"></div>
   <div id="zoning"></div>
   <div id="entity-index"><label for="entity-select">Explore the 21 entities</label><select id="entity-select"><option value="">Choose an entity…</option></select><div class="source-note">Uncalibrated study · <a href="atlas-table.html">Measures, notes & proposals →</a></div></div>
-  <div id="drawer-tools"><button type="button" data-control="plan-view">Plan view</button><button type="button" data-control="dusk">Day / dusk</button><button type="button" data-control="life">Population on / off</button><button type="button" data-control="relations">Toggle connections</button><button type="button" data-control="annotate">Toggle dimensions</button><a href="METHOD.md">How forms encode data ↗</a><a href="https://github.com/3esign/city-of-the-atlas" target="_blank" rel="noopener">Open source ↗</a></div>
+  <div id="drawer-tools"><button type="button" data-control="plan-view">Plan view</button><button type="button" data-control="dusk">Day / dusk</button><button type="button" data-control="life">Population on / off</button><button type="button" data-control="relations">Toggle connections</button><button type="button" data-control="annotate">Toggle dimensions</button><a href="METHOD.md">How forms encode data ↗</a><a href="https://github.com/3esign/city-of-the-atlas" target="_blank" rel="noopener">Open source ↗</a><button type="button" data-colophon>About this experiment</button></div>
   <div id="legend">
     <div class="row"><span class="sw" style="background:#e20a7f"></span>eel and its satellites</div>
     <div class="row"><span class="sw" style="background:#e3dccb"></span>schools now operating</div>

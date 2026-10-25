@@ -1848,8 +1848,29 @@ renderer.domElement.addEventListener("click", e => {
   if (hitQ) { let o = hitQ.object; while (o && !o.userData.prog) o = o.parent; if (o) showProgram(o.userData.prog); }
 });
 
+/* colophon: the experiment, signed. One dialog, reachable from the masthead
+   signature, the footer, the drawer and ?about. */
+const colophon = document.getElementById('colophon');
+let coloReturn = null;
+function openColophon() {
+  coloReturn = document.activeElement;
+  document.body.classList.remove('notes-open'); notesBtn.setAttribute('aria-expanded', 'false');
+  colophon.classList.add('on'); document.body.classList.add('colophon-open');
+  document.getElementById('co-close').focus();
+}
+function closeColophon() {
+  colophon.classList.remove('on'); document.body.classList.remove('colophon-open');
+  if (coloReturn && coloReturn.focus) coloReturn.focus(); coloReturn = null;
+}
+document.querySelectorAll('[data-colophon]').forEach(el =>
+  el.addEventListener('click', e => { e.preventDefault(); openColophon(); }));
+document.getElementById('co-close').onclick = closeColophon;
+colophon.addEventListener('click', e => { if (e.target === colophon) closeColophon(); });
+
 addEventListener("keydown", e => {
   if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key === "Escape" && colophon.classList.contains('on')) { closeColophon(); return; }
+  if (colophon.classList.contains('on')) return;
   if (e.key.toLowerCase() === 'r') resetView();
   if (MODE === 'orbit') {
     if (e.key === '+' || e.key === '=') zoomBy(.9);
@@ -1883,6 +1904,7 @@ addEventListener("keydown", e => {
   const e = /[?&]e=(\d+)/.exec(location.search);
   if (e && E[+e[1]]) showEntity(+e[1]);
   if (/[?&]notes/.test(location.search) && notesBtn) notesBtn.click();
+  if (/[?&]about/.test(location.search)) openColophon();
 }
 const STILL = /[?&]still/.test(location.search);
 if (/[?&]walk/.test(location.search)) requestAnimationFrame(() => enterWalk());

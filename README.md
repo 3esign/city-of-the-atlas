@@ -1,12 +1,18 @@
 # City of the Atlas
 
-**An open-source architectural experience by Semir Poturak / Svemir.**
+**An open experiment: what if the reading of an architectural school were an instrument you could walk through, argue with, and change?**
 
-Twenty-one entities, eight authored measures, three ways of reading architectural education. Change the question and watch the city rearrange. Inspect a form, compare its measures, or enter the model at eye height.
-
-Inspired by [eel Free School of Architecture](https://eelfreeschoolofarchitecture.com/). Independently created; **not affiliated with, commissioned by, or endorsed by the school**. Scores and relationships are provisional interpretations, not institutional ratings.
+Twenty-one entities, eight authored measures, three ways of reading architectural education. Change the question and watch the city rearrange. Inspect a form, compare its measures, or enter the model at eye height. Every score is published, every formula is documented, and every disagreement with them is welcome — the instrument exists so that the reading can be contested.
 
 ![The contour edition](preview.png)
+
+## The experiment
+
+- **Who.** [Semir Poturak](https://github.com/3esign) — architect, university educator and PhD researcher working on architectural education, computation and fabrication. The city was drawn, tested and verified inside **Svemir**, his open working universe in which several AI minds plan, build and check one another's work in parallel; this repository is one public record of what that collaboration can produce.
+- **Independence.** Inspired by [eel Free School of Architecture](https://eelfreeschoolofarchitecture.com/), whose published ideas set the questions. Independently created; **not affiliated with, commissioned by, or endorsed by the school**. Scores and relationships are provisional interpretations, not institutional ratings.
+- **Collaboration.** MIT-licensed, local-only, no analytics. Correct a score, propose an entity, add a frame, or fork the whole city for another field of knowledge — [open a conversation](https://github.com/3esign/city-of-the-atlas/issues).
+
+The same statement lives inside the instrument: the **colophon** opens from the signature in the masthead, the footer, the About drawer, or `?about`.
 
 ## Experience
 

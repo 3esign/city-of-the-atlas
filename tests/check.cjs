@@ -15,7 +15,8 @@ for(const tag of html.matchAll(/(?:src|href)="([^"]+)"/g)){
 assert(!/<script[^>]+src="https?:/.test(html),'remote runtime script');
 assert(!read('city.html').includes('src="./city.js"'),'offline bundle still imports city');
 assert(!read('city.html').includes('href="./hud.css"'),'offline bundle still imports CSS');
-assert.equal((read('atlas-table.html').match(/<article/g)||[]).length,36);
+assert.equal((read('atlas-table.html').match(/<article/g)||[]).length,40,'21 entities + 15 contributions + 4 colophon');
+for(const f of['index.html','atlas-table.html','README.md'])for(const s of['not affiliated with','Semir Poturak','Svemir','MIT'])assert(read(f).includes(s),`${f}: colophon statement "${s}"`);
 assert(read('NOTICE.md').includes('not affiliated with'));
 assert(read('vendor/THREE-LICENSE.txt').includes('Permission is hereby granted'));
 console.log('PASS: dataset ranges, frame bounds, DOM identity, local links, offline bundle, reading room, attribution and dependency license.');
