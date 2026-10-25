@@ -2,3 +2,7 @@ city.html
 .DS_Store
 Thumbs.db
 *.log
+node_modules/
+package.json
+package-lock.json
+.npmcache/

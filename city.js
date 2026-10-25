@@ -682,6 +682,249 @@ buildFilaments();
 filaments.visible=false;
 
 /* ═══════════════════════════════════════════════════════════════════════
+   THE ENGINE — the grammar, exhibited.
+   Every height in this city is computed from eight authored measures, and
+   until now the computation itself was invisible: the city read as if the
+   numbers had been found in the ground. The engine hangs the grammar above
+   the survey — one node per measure, sized by the weight the active frame
+   gives it, one hairline dropping to every mass that measure scores, and
+   the current formula written out in code. Nothing here is decoration:
+   the node heights ARE the weights, the drop lines ARE the data flow, and
+   the readout evaluates the real score function, live, for whatever the
+   visitor points at. Key E. ?engine deep-links it.
+   ═══════════════════════════════════════════════════════════════════════ */
+/* The weights each frame applies, declared beside the score they implement.
+   tests/check.cjs proves the two never drift apart. */
+const WEIGHTS = [
+  { aut:1, wld:1, mat:1, epi:1, acc:1, evi:0, rec:0, cos:0 },
+  { aut:0, wld:0, mat:1, epi:0, acc:0, evi:2, rec:2, cos:0 },
+  { aut:0, wld:1, mat:1, epi:0, acc:0, evi:0, rec:0, cos:3 }
+];
+const weight = (fi, k) => WEIGHTS[fi][k] || 0;
+const ENGINE = { on: false, lens: -1 };
+const engineGroup = new THREE.Group();
+engineGroup.visible = false;
+scene.add(engineGroup);
+const ENG_R = 330, ENG_BASE = 158, ENG_STEP = 46;
+
+/* nodes: one octahedron per measure, ink like the drafting linework */
+const enginePick = [];
+const engNodeMat = new THREE.MeshBasicMaterial({ color: C.ink });
+const engNodeGeo = new THREE.OctahedronGeometry(7.5, 0);
+const engineNodes = M.map(([k], i) => {
+  const m = new THREE.Mesh(engNodeGeo, engNodeMat);
+  const a = i / 8 * Math.PI * 2 - Math.PI / 2;
+  m.position.set(Math.cos(a) * ENG_R, ENG_BASE, Math.sin(a) * ENG_R);
+  m.userData = { k, i, w: weight(FI, k) };
+  engineGroup.add(m); enginePick.push(m);
+  return m;
+});
+
+/* node signs: the same diegetic plates the masses carry, mono-set */
+const engSigns = M.map(([k, nm], i) => {
+  const cv = document.createElement("canvas"); cv.width = 512; cv.height = 88;
+  const g = cv.getContext("2d");
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex, transparent: true, depthTest: false, fog: false }));
+  sp.renderOrder = 4;
+  sp.scale.set(56, 56 * 88 / 512, 1);
+  sp.userData = { i, k, nm, cv, g, tex };
+  engineGroup.add(sp);
+  return sp;
+});
+function paintEngineSigns() {
+  engSigns.forEach(sp => {
+    const { g, cv, nm, k } = sp.userData, w = weight(FI, k);
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.fillStyle = "rgba(236,230,217,.96)"; g.fillRect(0, 0, cv.width, cv.height);
+    g.strokeStyle = "rgba(20,18,16,.9)"; g.lineWidth = 4;
+    g.strokeRect(2, 2, cv.width - 4, cv.height - 4);
+    g.fillStyle = w ? "#e20a7f" : "rgba(20,18,16,.32)";
+    g.fillRect(6, 6, 10, cv.height - 12);
+    g.fillStyle = "#141210";
+    g.font = "600 34px ui-monospace, Consolas, monospace";
+    g.textBaseline = "middle"; g.textAlign = "left";
+    g.fillText(`M0${sp.userData.i + 1}`, 30, cv.height * .5);
+    g.font = "600 30px ui-monospace, Consolas, monospace";
+    let t = nm; while (g.measureText(t).width > 300 && t.length > 3) t = t.slice(0, -2);
+    g.fillText((t === nm ? t : t + "…").toUpperCase(), 122, cv.height * .5);
+    g.fillStyle = w ? "#e20a7f" : "rgba(20,18,16,.45)";
+    g.textAlign = "right";
+    g.fillText(w ? `w${w}` : "—", cv.width - 26, cv.height * .5);
+    sp.userData.tex.needsUpdate = true;
+    sp.visible = ENGINE.on;
+  });
+}
+
+/* drop lines: every measure, to every rooftop it scores. Vertex colors carry
+   the lens: the read measure's lines go accent, the rest fall back. */
+const ENG_SEG = M.length * E.length;
+const engineLineGeo = new THREE.BufferGeometry();
+engineLineGeo.setAttribute("position",
+  new THREE.BufferAttribute(new Float32Array(ENG_SEG * 6), 3));
+engineLineGeo.setAttribute("color",
+  new THREE.BufferAttribute(new Float32Array(ENG_SEG * 6), 3));
+const engineLines = new THREE.LineSegments(engineLineGeo, new THREE.LineBasicMaterial({
+  vertexColors: true, transparent: true, opacity: 0.62, fog: false }));
+engineLines.frustumCulled = false;
+engineGroup.add(engineLines);
+const engInk = new THREE.Color(0x141210), engDim = new THREE.Color(0x141210),
+      engAcc = new THREE.Color(0xe20a7f), engOff = new THREE.Color(0xb9b2a2);
+/* Idle, the grammar only touches its leaders: three lines per weighted
+   measure, so the engine reads as intent instead of scribble. The lens
+   pulls the whole field — all 21 drops for the one measure being read. */
+const engLeaders = M.map(([k]) => E.map((_, i) => [i, E[i][k]])
+  .sort((a, b) => b[1] - a[1]).slice(0, 3).map(p => p[0]));
+function refreshEngineLines() {
+  const pos = engineLineGeo.getAttribute("position");
+  const col = engineLineGeo.getAttribute("color");
+  let p = 0;
+  for (let k = 0; k < M.length; k++) {
+    const node = engineNodes[k];
+    const lensed = ENGINE.lens >= 0;
+    const active = weight(FI, M[k][0]) > 0;
+    const want = lensed ? (k === ENGINE.lens
+      ? E.map((_, i) => i) : [])
+      : (active ? engLeaders[k] : []);
+    let n = 0;
+    for (let i = 0; i < E.length; i++) {
+      const m = masses[i], draw = n < want.length;
+      const X = draw ? m.position.x : node.position.x,
+            Y = draw ? m.scale.y + 3 : node.position.y,
+            Z = draw ? m.position.z : node.position.z;
+      pos.setXYZ(p,     node.position.x, node.position.y, node.position.z);
+      pos.setXYZ(p + 1, X, Y, Z);
+      const c = draw ? (lensed ? engAcc : engInk) : engOff;
+      col.setXYZ(p, c.r, c.g, c.b); col.setXYZ(p + 1, c.r, c.g, c.b);
+      if (draw) n++;
+      p += 2;
+    }
+  }
+  pos.needsUpdate = true; col.needsUpdate = true;
+}
+
+/* computation, drawn: motes falling from node to rooftop on every measure
+   the frame actually uses. Reduced motion keeps the wiring, skips the rain. */
+const engPulseMat = new THREE.MeshBasicMaterial({ color: C.ink, toneMapped: false });
+const engPulses = new THREE.InstancedMesh(
+  new THREE.SphereGeometry(1.05, 6, 4), engPulseMat,
+  MOBILE || TOUCH ? 24 : 48);
+engPulses.frustumCulled = false; engPulses.visible = false; engPulses.count = 0;
+engineGroup.add(engPulses);
+const engPulseState = [];
+function spawnEngPulse() {
+  const live = M.map((m, k) => weight(FI, m[0]) > 0 ? k : -1).filter(k => k >= 0);
+  const k = live[(Math.random() * live.length) | 0];
+  engPulseState.push({ k, i: (Math.random() * E.length) | 0, t: 0 });
+}
+function stepEnginePulses(dt) {
+  const want = MOBILE || TOUCH ? 12 : 26;
+  while (engPulseState.length < want) spawnEngPulse();
+  const dummy = new THREE.Object3D();
+  let n = 0;
+  for (const s of engPulseState) {
+    s.t += dt * 0.55;
+    if (s.t >= 1) { s.t = 0; s.k = (Math.random() * M.length) | 0;
+                    s.i = (Math.random() * E.length) | 0; }
+    const node = engineNodes[s.k], m = masses[s.i];
+    if (ENGINE.lens >= 0 && s.k !== ENGINE.lens) { continue; }
+    dummy.position.lerpVectors(node.position,
+      new THREE.Vector3(m.position.x, m.scale.y + 3, m.position.z), s.t);
+    dummy.scale.setScalar(1);
+    dummy.updateMatrix();
+    engPulses.setMatrixAt(n++, dummy.matrix);
+  }
+  engPulses.count = n;
+  engPulses.instanceMatrix.needsUpdate = true;
+}
+
+/* the readout: the formula, in code, evaluated live. The instrument shows
+   its own source — the visitor is never asked to trust a number. */
+const engReadout = document.getElementById("engine-readout");
+const fmt = k => (M.find(m => m[0] === k) || [k, k])[1];
+function engineFormula() {
+  const w = M.map(([k]) => [k, weight(FI, k)]).filter(([, w]) => w > 0)
+    .map(([k, w]) => (w > 1 ? `${w}·` : "") + k);
+  return `score(e) = ${w.join(" + ")}`;
+}
+function renderEngineReadout() {
+  if (!ENGINE.on) { engReadout.classList.remove("on"); return; }
+  engReadout.classList.add("on");
+  const f = FRAMES[FI];
+  if (ENGINE.lens >= 0) {
+    const [k, nm] = M[ENGINE.lens], w = weight(FI, k);
+    const rows = E.map((d, i) => ({ i, v: d[k] }))
+      .sort((a, b) => b.v - a.v).slice(0, 6);
+    engReadout.innerHTML = `
+      <div class="er-hd"><span class="key">Engine · measure lens</span>
+        <button type="button" class="er-x" aria-label="Clear lens">✕</button></div>
+      <h3>${nm}${w ? ` <i>weight ×${w}</i>` : " <i>unused in this frame</i>"}</h3>
+      <div class="er-f">${nm.toLowerCase()}(e) ∈ 0…5, per entity, authored</div>
+      ${rows.map(r => `<div class="er-row"><span class="n">${E[r.i].n}</span>
+        <span class="b"><i style="width:${r.v * 20}%"></i></span>
+        <span class="v">${r.v}</span></div>`).join("")}`;
+    engReadout.querySelector(".er-x").onclick = () => setLens(-1);
+  } else {
+    const hov = hovered >= 0 ? E[hovered] : null;
+    engReadout.innerHTML = `
+      <div class="er-hd"><span class="key">Engine · frame 0${FI + 1} — ${f.name}</span></div>
+      <div class="er-f">${engineFormula()}</div>
+      ${hov ? `<div class="er-row er-live"><span class="n">${hov.n}</span>
+        <span class="v">${f.score(hov)}</span></div>
+        <div class="er-note">live — pointer is on this mass</div>`
+            : `<div class="er-note">tap a node to read one measure · tap again to release</div>`}`;
+  }
+}
+
+function setLens(k) {
+  ENGINE.lens = (k === ENGINE.lens) ? -1 : k;
+  engineNodes.forEach(n => {
+    const s = n.userData.i === ENGINE.lens ? 1.5 : 1;
+    n.scale.setScalar(s);
+  });
+  refreshEngineLines();
+  renderEngineReadout();
+  invalidate(900);
+}
+function toggleEngine(on) {
+  ENGINE.on = (on === undefined) ? !ENGINE.on : on;
+  engineGroup.visible = ENGINE.on;
+  document.body.classList.toggle("engine", ENGINE.on);
+  const b = document.getElementById("engine");
+  b.setAttribute("aria-pressed", String(ENGINE.on));
+  b.textContent = ENGINE.on ? "Engine: on" : "Engine";
+  paintEngineSigns();
+  if (!ENGINE.on) { ENGINE.lens = -1; engPulseState.length = 0; engPulses.count = 0; }
+  refreshEngineLines();
+  renderEngineReadout();
+  invalidate(1200);
+}
+/* the engine follows the light: ink by day, bone after dark */
+function engineTint(mark) {
+  engNodeMat.color.setHex(mark);
+  engPulseMat.color.setHex(mark);
+  engOff.setHex(LIFE.dusk ? 0x5d646e : 0xb9b2a2);
+  engInk.setHex(LIFE.dusk ? 0xece6d9 : 0x141210);
+  if (ENGINE.on) refreshEngineLines();
+}
+document.getElementById("engine").onclick = () => toggleEngine();
+function stepEngine(dt) {
+  for (const n of engineNodes) {
+    const target = ENG_BASE + weight(FI, n.userData.k) * ENG_STEP;
+    n.position.y += (target - n.position.y) * Math.min(1, dt * (reduce ? 30 : 4.5));
+    const s = engineNodes.indexOf(n);
+    const sp = engSigns[s];
+    sp.position.set(n.position.x, n.position.y + 22 + (n.scale.x - 1) * 9, n.position.z);
+  }
+  if (!reduce) { stepEnginePulses(dt); engPulses.visible = true; }
+  else engPulses.visible = false;
+  refreshEngineLines();
+  if (frames % 6 === 0) renderEngineReadout();
+}
+paintEngineSigns();
+
+/* ═══════════════════════════════════════════════════════════════════════
    THE EEL QUARTER — 11 published programmes around the eel mass.
    Built = the apparatus exists.  Site = a pegged-out vacant lot.
    ═══════════════════════════════════════════════════════════════════════ */
@@ -1040,6 +1283,7 @@ function applyLight(k = LIFE.dusk ? DUSK : DAY) {
   const mark = LIFE.dusk ? 0xece6d9 : 0x141210;   // ink stays ink after dark
   selRing.material.color.setHex(mark);
   hoverRing.material.color.setHex(mark);
+  engineTint(mark);
   groundMesh.material.color.setHex(LIFE.dusk ? 0x8d8b84 : 0xffffff);
   renderer.shadowMap.needsUpdate = true;
 }
@@ -1753,7 +1997,7 @@ function freeRect() {
     else if (b.right < VW * 0.5) left = Math.max(left, b.right + 12);
     else if (b.left > VW * 0.5) right = Math.min(right, b.left - 12);
   }
-  for (const id of ["tabs", "walk", "status-strip", "credit", "title-block"]) {
+  for (const id of ["tabs", "walk", "status-strip", "credit", "title-block", "engine-readout"]) {
     const n = el(id); if (!vis(n)) continue;
     const b = n.getBoundingClientRect();
     if (b.top > VH * 0.55) bottom = Math.min(bottom, b.top - 8);
@@ -1833,6 +2077,7 @@ function leavePlanUI() {
 function planView(on = !document.body.classList.contains("plan")) {
   document.body.classList.toggle("plan", on);
   clouds.group.visible = !on;          // the plan is read through, not around weather
+  if (on && ENGINE.on) toggleEngine(false);   // the grammar stands down for the plan
   closeExhibit(); closePanel();
   if (MODE === "walk") exitWalk();
   const btn = document.getElementById("plan-view");
@@ -1912,7 +2157,10 @@ function buildTour() {
   steps.push({ plan: true,
     say: `<b>The plan</b>Every entity named by rank. The survey solves for the screen you brought — the sheet turns to fit, and the names never collide.`,
     hold: 4400 });
-  steps.push({ plan: false, dusk: true,
+  steps.push({ engine: true, cam: wideOf(FI, 0.62),
+    say: `<b>The engine</b>The grammar, exhibited: every measure the active frame applies hangs over the city it scores, its weight in plain sight. Tap a measure and the whole reading narrows to one question.`,
+    hold: 5000 });
+  steps.push({ plan: false, dusk: true, engine: false,
     say: `<b>Dusk</b>One lamp per point of published evidence. A school that documents nothing stands in the dark — that is a reading too.`,
     hold: 4800 });
   steps.push({ focus: eelIdx, dusk: true,
@@ -1948,6 +2196,7 @@ function nextTourStep() {
   const s = tour.steps[tour.i];
   if (s.frame !== undefined && s.frame !== FI) setFrame(s.frame);
   if (s.plan !== undefined && s.plan !== document.body.classList.contains("plan")) planView(s.plan);
+  if (s.engine !== undefined && s.engine !== ENGINE.on) toggleEngine(s.engine);
   if (s.dusk !== undefined && s.dusk !== LIFE.dusk) setDusk(s.dusk);
   if (s.focus !== undefined) {
     const m = masses[s.focus];
@@ -2023,6 +2272,19 @@ renderer.domElement.addEventListener("pointermove", e => {
   ray.setFromCamera(ptr, camera);
   const hitM = ray.intersectObjects(masses, false)[0];
   const hitQ = ray.intersectObjects(quarter.children, true)[0];
+  const hitE = ENGINE.on ? ray.intersectObjects(enginePick, false)[0] : null;
+  if (hitE && (!hitM || hitE.distance < hitM.distance - 4)) {
+    const nd = hitE.object.userData;
+    hovered = -1;
+    labelEl.textContent = `${fmt(nd.k).toUpperCase()} · weight ×${weight(FI, nd.k)}`;
+    if (ENGINE.lens >= 0 && ENGINE.lens !== nd.i) labelEl.textContent += " · tap to switch lens";
+    else if (ENGINE.lens === nd.i) labelEl.textContent += " · tap to release";
+    labelEl.classList.add("on");
+    labelEl.style.left = (e.clientX + 15) + "px";
+    labelEl.style.top = (e.clientY - 11) + "px";
+    renderer.domElement.style.cursor = "pointer";
+    return;
+  } else {
   const near = (hitM && hitQ) ? (hitM.distance < hitQ.distance ? "m" : "q") : hitM ? "m" : hitQ ? "q" : null;
   if (near === "m") {
     hovered = hitM.object.userData.i;
@@ -2041,6 +2303,7 @@ renderer.domElement.addEventListener("pointermove", e => {
     labelEl.classList.remove("on");
     renderer.domElement.style.cursor = "grab";
   }
+  }
 });
 
 renderer.domElement.addEventListener("click", e => {
@@ -2052,6 +2315,11 @@ renderer.domElement.addEventListener("click", e => {
   ray.setFromCamera(ptr, camera);
   const hitM = ray.intersectObjects(masses, false)[0];
   const hitQ = ray.intersectObjects(quarter.children, true)[0];
+  const hitE = ENGINE.on ? ray.intersectObjects(enginePick, false)[0] : null;
+  if (hitE && (!hitM || hitE.distance < hitM.distance - 4)) {
+    setLens(hitE.object.userData.i);   // tap a node: one measure takes the lens
+    return;
+  }
   if (hitM && (!hitQ || hitM.distance < hitQ.distance)) {
     // arrive, then read: the camera glides to the mass and the dossier opens in flight
     const m = hitM.object, i = m.userData.i;
@@ -2120,6 +2388,8 @@ addEventListener("keydown", e => {
   if (e.key.toLowerCase() === "n") setDusk(!LIFE.dusk);
   if (e.key.toLowerCase() === "l") toggleLife();
   if (e.key.toLowerCase() === "t") startTour();
+  if (e.key.toLowerCase() === "e") toggleEngine();
+  if (e.key === "Escape" && ENGINE.lens >= 0) { setLens(-1); return; }
   if (e.key === "Escape") {
     if (tour) endTour();
     else if (MODE === "walk") exitWalk(); else closePanel();
@@ -2137,6 +2407,8 @@ addEventListener("keydown", e => {
   if (e && E[+e[1]]) showEntity(+e[1]);
   if (/[?&]notes/.test(location.search) && notesBtn) notesBtn.click();
   if (/[?&]about/.test(location.search)) openColophon();
+  if (/[?&]engine/.test(location.search))
+    requestAnimationFrame(() => toggleEngine(true));   // after the loop's state exists
 }
 const STILL = /[?&]still/.test(location.search);
 if (/[?&]walk/.test(location.search)) requestAnimationFrame(() => enterWalk());
@@ -2168,6 +2440,7 @@ function tick(now) {
   stepCamTween(now);
   if (LIFE.on && !reduce) { LIFE.t += dt; stepCrowd(dt); stepPulses(dt); stepClouds(dt); }
   if (tour) stepTour(dt);
+  if (ENGINE.on) stepEngine(dt);
   if (MODE === "walk") {
     stepWalk(dt); updateNear();
     mapPlayer.setAttribute('transform',`translate(${walker.x},${walker.z}) rotate(${180-walker.yaw*180/Math.PI})`);
@@ -2263,6 +2536,15 @@ if (new URLSearchParams(location.search).has('qa')) window.__atlasQA = {
   pulses: () => pulses.visible ? pulses.count : 0,
   walkTo: (x,z) => { walker.x=x; walker.z=z; invalidate(600); },
   tour: () => tour ? { step: tour.i, steps: tour.steps.length, wait: tour.wait, hold: tour.hold } : null,
+  engine: () => ({ on: ENGINE.on, lens: ENGINE.lens, nodes: enginePick.length,
+    lineVerts: engineLineGeo.getAttribute("position").count,
+    readoutOn: document.getElementById("engine-readout").classList.contains("on"),
+    formula: engineFormula(),
+    pressed: document.getElementById("engine").getAttribute("aria-pressed"),
+    lensTop: ENGINE.lens >= 0 ? document.querySelector("#engine-readout h3")?.textContent.trim() : null,
+    pulses: engPulses.count,
+    setLensQa: k => setLens(k),
+    toggle: () => toggleEngine() }),
   camTween: () => !!camTween,
   clouds: () => ({ count: clouds.list.length, visible: clouds.group.visible }),
   /* Does the plan actually fit, and do the names read? Measured against the

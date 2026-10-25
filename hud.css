@@ -180,6 +180,50 @@ body.plan #status-strip{opacity:0;transition:opacity .25s}
 #cut-skip:hover{color:var(--ink);border-color:var(--ink)}
 #cut-skip:focus-visible{outline:2px solid var(--pink);outline-offset:2px}
 body.tour #tabs,body.tour #walk{opacity:.35;pointer-events:none;transition:opacity .3s}
+
+/* ── the engine readout: the score function, printed on the sheet ──────
+   A cut bill of the arithmetic: the formula in mono, and when the pointer
+   rests on a mass, its live evaluation. Paper, hairline, one accent. */
+#engine-readout{display:none;position:fixed;left:var(--m);bottom:64px;z-index:6;
+  width:min(340px,calc(100vw - 2*var(--m)));max-height:44dvh;overflow:auto;
+  background:var(--paper);border:1px solid var(--ink);box-shadow:0 3px 0 var(--ink);
+  padding:0}
+#engine-readout.on{display:block}
+#engine-readout .er-hd{display:flex;justify-content:space-between;align-items:center;
+  padding:9px 12px;border-bottom:1px solid var(--ink-20)}
+#engine-readout .er-hd .key{font:600 8.5px/1 var(--mono);letter-spacing:.2em;
+  text-transform:uppercase;color:var(--pink)}
+#engine-readout .er-x{all:unset;cursor:pointer;width:30px;height:30px;display:grid;
+  place-items:center;font:400 13px/1 var(--sans);color:var(--ink-45);
+  border-left:1px solid var(--ink-20);margin:-9px -12px -9px 0}
+#engine-readout .er-x:hover{background:var(--ink);color:var(--paper)}
+#engine-readout h3{margin:11px 12px 0;font:400 21px/1.05 Georgia,'Times New Roman',serif;
+  letter-spacing:-.02em}
+#engine-readout h3 i{font:500 10px/1 var(--mono);letter-spacing:.06em;color:var(--pink);
+  font-style:normal;vertical-align:2px;margin-left:4px}
+#engine-readout .er-f{margin:7px 12px 0;font:11px/1.5 var(--mono);color:var(--ink-70);
+  letter-spacing:.01em}
+#engine-readout .er-row{display:grid;grid-template-columns:1fr 84px 26px;gap:9px;
+  align-items:center;padding:5px 12px;font-size:10.5px;color:var(--ink-70)}
+#engine-readout .er-row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#engine-readout .er-row .b{height:8px;background:var(--ink-10);position:relative}
+#engine-readout .er-row .b i{position:absolute;left:0;top:0;bottom:0;background:var(--ink)}
+#engine-readout .er-row .v{font:600 11px/1 var(--mono);text-align:right;
+  font-variant-numeric:tabular-nums}
+#engine-readout .er-live{border-top:1px solid var(--ink-20);margin-top:9px;
+  grid-template-columns:1fr auto}
+#engine-readout .er-live .v{color:var(--pink);font-size:15px}
+#engine-readout .er-note{padding:4px 12px 11px;font:9.5px/1.5 var(--mono);
+  letter-spacing:.05em;color:var(--ink-45)}
+body.dusk #engine-readout{background:#1a1e24;color:#eceadf;border-color:#3a4049;
+  box-shadow:0 3px 0 #3a4049}
+body.dusk #engine-readout .er-f{color:#b3b5ac}
+body.dusk #engine-readout .er-row{color:#b3b5ac}
+body.dusk #engine-readout .er-row .b{background:#2a3038}
+body.dusk #engine-readout .er-row .b i{background:#eceadf}
+@media (max-width:1040px){
+  #engine-readout{bottom:calc(122px + var(--sa-b,0px));max-height:34dvh}
+}
 @media (max-width:1040px){
   #cut{top:calc(90px + var(--sa-b,0px))}
   #cut .t{font-size:11.5px}

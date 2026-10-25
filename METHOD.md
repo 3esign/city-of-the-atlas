@@ -58,6 +58,24 @@ The population and the lighting are read off the same eight measures as the form
 
 The whole population is one instanced draw call, as are the posts, the heads and the pools. The crowd stops when the page is hidden, when `prefers-reduced-motion` is set, and whenever the population is switched off.
 
+## The engine
+
+Every height in the city is computed; the engine (E, or `?engine`) refuses to let that
+computation stay invisible. Eight measure-nodes ring the survey at a height set by the
+weight the active frame gives them, each dropping hairlines to the three masses its
+value leads. Tapping a node opens a lens: that one measure's drop-lines run to all 21
+masses in the accent ink, the other measures fall silent, and the readout prints the
+measure's own field — who carries 5, who carries 0 — under the weight the frame applies.
+The readout always shows the frame's formula in code form (`score(e) = aut + wld + …`)
+and, under the pointer, evaluates it live for the mass beneath it.
+
+The exhibited weights are not documentation of the score function; they are bound to it.
+`tests/check.cjs` proves, for every entity in every frame, that the declared weights
+reproduce `FRAMES[n].score` exactly — if the formula and the city ever drift apart, the
+build fails. The motes falling along the drop lines are the only animation the engine
+has, and reduced-motion keeps the wiring while silencing them. In plan view the engine
+stands down, so the named survey reads alone.
+
 ## Plan
 
 Plan view solves the camera distance from the measured free rectangle of the screen — the area the masthead, margin, controls, tabs, stamp and credit leave unoccupied — using both half-angles of the frustum, so the entire survey lands inside what is actually visible rather than inside the raw viewport. Where the survey runs diagonally across a portrait screen the sheet is turned, in 15° steps, to whichever angle needs the least distance; the caption states the turn. On a wide sheet every entity is named with its rank; below 700 px, or when the free band is shorter than 300 px, the plan is numbered by rank and the names are read in the index, because 21 names at a readable size would bury the city they describe.

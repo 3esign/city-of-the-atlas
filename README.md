@@ -63,11 +63,12 @@ Publication is deliberately manual: set the repository's Pages source to **GitHu
 | Look | Pointer lock or drag | Drag outside joystick |
 | Exit walk | Esc; Model button | Model button |
 | Plan, everything named | Plan view; P | Plan view |
+| The engine — the arithmetic, on show | Engine; E | About / index → The engine |
 | Day / dusk | Dusk; N | Day / dusk, in About / index |
 | Population on / off | Life; L | About / index |
 | Reset | Reset view; R | Reset view |
 
-Additional controls are available in About / index on narrow screens. Links: `#f0`, `#f1`, `#f2` select frames; `?e=0` opens an entity; `?walk` enters walking.
+Additional controls are available in About / index on narrow screens. Links: `#f0`, `#f1`, `#f2` select frames; `?e=0` opens an entity; `?walk` enters walking; `?engine` opens the engine over the active frame.
 
 ## Sources and verification
 
