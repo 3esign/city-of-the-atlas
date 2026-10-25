@@ -613,6 +613,34 @@ const repaintPlate = i => {
   sp.userData.tex.needsUpdate = true;
 };
 
+/* ── the reader's marks: a dashed circle at the foot of what is being
+   read, a fainter one under the pointer. Drafting language, not glow:
+   ink on the sheet, four ticks, nothing the camera did not already say. */
+function makeRing(opacity, dashed) {
+  const pts = [];
+  for (let j = 0; j <= 96; j++) {
+    const a = j / 96 * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
+  }
+  const ring = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    dashed
+      ? new THREE.LineDashedMaterial({ color: 0x141210, transparent: true, opacity, dashSize: 5.8, gapSize: 3.4 })
+      : new THREE.LineBasicMaterial({ color: 0x141210, transparent: true, opacity }));
+  if (dashed) ring.computeLineDistances();
+  ring.visible = false; ring.renderOrder = 3;
+  scene.add(ring);
+  return ring;
+}
+const selRing = makeRing(0.82, true), hoverRing = makeRing(0.28, false);
+function ringAt(ring, i, pad = 13) {
+  const m = masses[i];
+  ring.position.set(m.position.x, 0.28, m.position.z);
+  const R = Math.max(m.userData.w, m.userData.dp) * 0.5 + pad;
+  ring.scale.set(R, 1, R);
+  ring.visible = true;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    FILAMENTS — eel's own hairline wires, doing analytical work:
    each one is a line of descent or dependence between two masses.
@@ -950,6 +978,44 @@ function stepPulses(dt) {
   pulses.instanceMatrix.needsUpdate = true;
 }
 
+/* ── clouds: the cheapest depth cue the sheet can carry ────────────────
+   Eight soft washes high over the survey, drifting with the life of the
+   city. They are drawn in the sheet's language — ink wash, not sky
+   photography — and they take the dusk with everything else. Hidden in
+   plan, where they would sit between the reader and the names. */
+const clouds = (() => {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 256;
+  const g = cv.getContext("2d");
+  for (const [cx, cy, r, a] of [[128, 142, 84, .30], [86, 122, 60, .20],
+                                 [176, 126, 56, .18], [142, 102, 42, .15], [118, 162, 48, .13]]) {
+    const rg = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+    rg.addColorStop(0, `rgba(255,255,255,${a})`);
+    rg.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = rg; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+  }
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.9, depthWrite: false });
+  const list = [];
+  for (let k = 0; k < 8; k++) {
+    const s = new THREE.Sprite(mat);
+    const w = 300 + hash(k * 13 + 5) * 340;
+    s.scale.set(w, w * 0.40, 1);
+    s.position.set((hash(k + 41) - 0.5) * 1600, 310 + hash(k * 7 + 1) * 170, (hash(k * 3 + 11) - 0.5) * 1600);
+    s.userData.sp = 2.2 + hash(k * 17) * 3.2;      // m/s: a slow weather, not a show
+    list.push(s);
+  }
+  const group = new THREE.Group();
+  list.forEach(s => group.add(s));
+  scene.add(group);
+  return { group, list, mat };
+})();
+function stepClouds(dt) {
+  for (const s of clouds.list) {
+    s.position.x += s.userData.sp * dt;
+    if (s.position.x > 1000) s.position.x = -1000;
+  }
+}
+
 /* ── dusk ──────────────────────────────────────────────────────────────
    One switch moves the whole image, not the lamps alone: key light down
    and warmer, sky and environment down, exposure and bloom up. The lamps
@@ -969,6 +1035,11 @@ function applyLight(k = LIFE.dusk ? DUSK : DAY) {
   gradeMat.uniforms.bloom.value = k.bloom;
   lampHeadMat.emissiveIntensity = k.emis;
   poolMat.opacity = k.pool;
+  clouds.mat.color.setHex(LIFE.dusk ? 0x8e8798 : 0xffffff);
+  clouds.mat.opacity = LIFE.dusk ? 0.45 : 0.9;
+  const mark = LIFE.dusk ? 0xece6d9 : 0x141210;   // ink stays ink after dark
+  selRing.material.color.setHex(mark);
+  hoverRing.material.color.setHex(mark);
   groundMesh.material.color.setHex(LIFE.dusk ? 0x8d8b84 : 0xffffff);
   renderer.shadowMap.needsUpdate = true;
 }
@@ -1032,6 +1103,44 @@ function applyOrbit() {
 }
 applyOrbit();
 
+/* ── flyTo: one choreography for every camera move ─────────────────────
+   Selections, the plan, the tour and the opening sweep all arrive
+   instead of teleporting. Azimuth takes the short way round; a pointer
+   on the canvas takes the camera back the moment it lands on it. */
+let camTween = null;
+function flyTo(to, dur = 1600) {
+  if (MODE !== "orbit") return;
+  const from = { ...orbit };
+  let dAz = (to.az !== undefined ? to.az : from.az) - from.az;
+  dAz = ((dAz + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  const end = {
+    pol:  to.pol  !== undefined ? to.pol  : from.pol,
+    dist: to.dist !== undefined ? to.dist : from.dist,
+    tx:   to.tx   !== undefined ? to.tx   : from.tx,
+    ty:   to.ty   !== undefined ? to.ty   : from.ty,
+    tz:   to.tz   !== undefined ? to.tz   : from.tz
+  };
+  if (reduce || dur <= 0) {
+    Object.assign(orbit, end); orbit.az = from.az + dAz;
+    applyOrbit(); camTween = null; return;
+  }
+  camTween = { from, dAz, end, t0: performance.now(), dur };
+  invalidate(dur + 400);
+}
+function stepCamTween(now) {
+  if (!camTween) return;
+  const p = Math.min(1, (now - camTween.t0) / camTween.dur);
+  const q = ease(p);
+  orbit.az   = camTween.from.az   + camTween.dAz * q;
+  orbit.pol  = camTween.from.pol  + (camTween.end.pol  - camTween.from.pol)  * q;
+  orbit.dist = camTween.from.dist + (camTween.end.dist - camTween.from.dist) * q;
+  orbit.tx   = camTween.from.tx   + (camTween.end.tx   - camTween.from.tx)   * q;
+  orbit.ty   = camTween.from.ty   + (camTween.end.ty   - camTween.from.ty)   * q;
+  orbit.tz   = camTween.from.tz   + (camTween.end.tz   - camTween.from.tz)   * q;
+  applyOrbit();
+  if (p >= 1) camTween = null;
+}
+
 /* One pointer model for mouse and thumb. A mouse never raises a second
    pointer, so the pinch branch simply never fires for it; a thumb never
    raises a wheel event, so the pinch branch is the only zoom it has. */
@@ -1046,6 +1155,7 @@ renderer.domElement.addEventListener("pointerdown", e => {
   pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
   renderer.domElement.setPointerCapture(e.pointerId);
   if (MODE === "walk") { walkDown(e); return; }
+  camTween = null;                    // a hand on the canvas owns the camera
   if (pts.size === 2) { pinch = pinchDist(); drag = null; suppressPick = true; return; }
   drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId, touch: e.pointerType !== "mouse" };
   renderer.domElement.setPointerCapture(e.pointerId);
@@ -1096,6 +1206,7 @@ function zoomBy(f) {
 renderer.domElement.addEventListener("wheel", e => {
   if (MODE !== "orbit") return;
   e.preventDefault();
+  camTween = null;
   zoomBy(1 + Math.sign(e.deltaY) * 0.1);
   userMoved = true;
 }, { passive: false });
@@ -1540,6 +1651,7 @@ document.getElementById("close").onclick = closePanel;
 function closePanel() {
   const wasOpen = panel.classList.contains('on');
   panel.classList.remove("on"); selectedEntity = null;
+  document.body.classList.remove("panel-open");
   if (wasOpen && MODE !== 'walk') {
     const target = panelReturnFocus?.isConnected && panelReturnFocus.getClientRects().length ? panelReturnFocus : document.getElementById('reset');
     target.focus({preventScroll:true});
@@ -1548,6 +1660,7 @@ function closePanel() {
 function openPanel(focus = true) {
   if (!panel.classList.contains('on')) panelReturnFocus = document.activeElement;
   panel.classList.add('on'); pbody.scrollTop = 0;
+  document.body.classList.add("panel-open");
   document.body.classList.remove('notes-open'); notesBtn.setAttribute('aria-expanded','false');
   if (focus) document.getElementById('close').focus({preventScroll:true});
 }
@@ -1595,7 +1708,7 @@ function radar(d){
 document.addEventListener('atlas-focus',e=>{
   const m=masses[e.detail]; if(!m)return;closePanel();userMoved=true;
   if(tween){applyTween(1);tween=null;}
-  Object.assign(orbit,{tx:m.position.x,ty:m.scale.y*.42,tz:m.position.z,dist:MOBILE?230:185,pol:.98});applyOrbit();invalidate();
+  flyTo({tx:m.position.x,ty:m.scale.y*.42,tz:m.position.z,dist:MOBILE?230:185,pol:.98},1400);
 });
 document.getElementById('geometry').onclick=()=>{
   geometryMode=geometryMode==='contour'?'terraces':'contour';
@@ -1630,6 +1743,9 @@ function freeRect() {
   let top = 14, bottom = VH - 14, left = 14, right = VW - 14;
   const mast = el("masthead");
   if (vis(mast)) top = Math.max(top, mast.getBoundingClientRect().bottom + 10);
+  const cutBox = el("cut");              // the tour caption claims the top while it speaks
+  if (vis(cutBox) && cutBox.classList.contains("on"))
+    top = Math.max(top, cutBox.getBoundingClientRect().bottom + 8);
   for (const id of ["margin", "tools"]) {
     const n = el(id); if (!vis(n)) continue;
     const b = n.getBoundingClientRect();
@@ -1716,6 +1832,7 @@ function leavePlanUI() {
 }
 function planView(on = !document.body.classList.contains("plan")) {
   document.body.classList.toggle("plan", on);
+  clouds.group.visible = !on;          // the plan is read through, not around weather
   closeExhibit(); closePanel();
   if (MODE === "walk") exitWalk();
   const btn = document.getElementById("plan-view");
@@ -1749,7 +1866,7 @@ document.getElementById('life').onclick = toggleLife;
 if (reduce) { LIFE.on = false; const b = document.getElementById('life');
   b.textContent = 'Life: off'; b.setAttribute('aria-pressed', 'false'); }
 function closeExhibit(){document.body.classList.add('exploring');}
-renderer.domElement.addEventListener('pointerdown',closeExhibit);
+renderer.domElement.addEventListener('pointerdown',e=>{closeExhibit();if(tour)endTour();});
 document.addEventListener('atlas-focus',closeExhibit);
 document.getElementById('feature').onclick=()=>document.dispatchEvent(new CustomEvent('atlas-focus',{detail:0}));
 document.getElementById('annotate').onclick=e=>{const on=document.body.classList.toggle('annotations');e.currentTarget.setAttribute('aria-pressed',String(on));invalidate();};
@@ -1758,6 +1875,97 @@ document.getElementById('annotate').onclick=e=>{const on=document.body.classList
 document.querySelectorAll('[data-control]').forEach(button=>button.onclick=()=>{
   document.body.classList.remove('notes-open');notesBtn.setAttribute('aria-expanded','false');
   requestAnimationFrame(()=>document.getElementById(button.dataset.control).click());});
+
+/* ═══════════════════════════════════════════════════════════════════════
+   THE GUIDED TOUR — the instrument tells its own argument
+   Every move the city already knows — frame, plan, dusk, arrival — is
+   sequenced into one reading with sheet-note captions. A hand on the
+   canvas ends the tour at that exact moment and keeps the camera:
+   orientation belongs to the visitor, narration only borrows it.
+   ═══════════════════════════════════════════════════════════════════════ */
+const cutEl = document.getElementById("cut"), cutTxt = cutEl.querySelector(".t");
+let tour = null;
+function cut(html) {
+  if (html) { cutTxt.innerHTML = html; cutEl.classList.add("on"); }
+  else cutEl.classList.remove("on");
+}
+function wideOf(fi, pol) {
+  const c = framing(fi);
+  return { pol, dist: Math.min(1700, c.dist * 1.28), tx: c.tx, ty: c.ty, tz: c.tz };
+}
+function buildTour() {
+  const f0 = FI, seq = [f0, (f0 + 1) % 3, (f0 + 2) % 3];
+  const lead = fi => leader(fi);
+  const steps = [];
+  steps.push({ cam: wideOf(f0, 0.56),
+    say: `<b>City of the Atlas</b>Twenty-one entities, eight authored measures. This city is an argument: every form's height is its standing in the current reading.`,
+    hold: 4400 });
+  steps.push({ focus: lead(seq[0]),
+    say: `<b>Frame 0${seq[0] + 1} · ${FRAMES[seq[0]].name}</b>${E[lead(seq[0])].n} leads this reading. None of it is a rating — every score is published, and meant to be contested.`,
+    hold: 4000 });
+  steps.push({ frame: seq[1],
+    say: `<b>Frame 0${seq[1] + 1} · ${FRAMES[seq[1]].name}</b>Change the question, and the same entities stand differently. Nothing moves but the reading.`,
+    hold: 4800 });
+  steps.push({ frame: seq[2],
+    say: `<b>Frame 0${seq[2] + 1} · ${FRAMES[seq[2]].name}</b>A third reading. How far an entity moves between frames is its variance — the widest movers are the real argument.`,
+    hold: 4800 });
+  steps.push({ plan: true,
+    say: `<b>The plan</b>Every entity named by rank. The survey solves for the screen you brought — the sheet turns to fit, and the names never collide.`,
+    hold: 4400 });
+  steps.push({ plan: false, dusk: true,
+    say: `<b>Dusk</b>One lamp per point of published evidence. A school that documents nothing stands in the dark — that is a reading too.`,
+    hold: 4800 });
+  steps.push({ focus: eelIdx, dusk: true,
+    say: `<b>The origin</b>eel, in the one accent the sheet spends. Around it, the quarter: built pavilions and pegged lots for programmes that do not exist yet.`,
+    hold: 5000 });
+  steps.push({ dusk: false, cam: wideOf(FI, 0.88),
+    say: `<b>Your city now</b>Change a frame, walk a street, open a dossier — or contest a score. The instrument exists to be argued with.`,
+    hold: 4200 });
+  return steps;
+}
+function startTour() {
+  if (tour) return endTour();
+  if (MODE === "walk") exitWalk();
+  closePanel(); closeExhibit(); userMoved = true;
+  tour = { steps: buildTour(), i: -1, wait: 0, hold: 0 };
+  document.body.classList.add("tour");
+  const b = document.getElementById("tour");
+  b.textContent = "End tour"; b.setAttribute("aria-pressed", "true");
+  cutEl.querySelector("#cut-skip").focus({ preventScroll: true });
+  nextTourStep();
+}
+function endTour() {
+  if (!tour) return;
+  tour = null; cut("");
+  document.body.classList.remove("tour");
+  const b = document.getElementById("tour");
+  b.textContent = "Tour"; b.setAttribute("aria-pressed", "false");
+  invalidate(1400);
+}
+function nextTourStep() {
+  tour.i++;
+  if (tour.i >= tour.steps.length) return endTour();
+  const s = tour.steps[tour.i];
+  if (s.frame !== undefined && s.frame !== FI) setFrame(s.frame);
+  if (s.plan !== undefined && s.plan !== document.body.classList.contains("plan")) planView(s.plan);
+  if (s.dusk !== undefined && s.dusk !== LIFE.dusk) setDusk(s.dusk);
+  if (s.focus !== undefined) {
+    const m = masses[s.focus];
+    flyTo({ tx: m.position.x, ty: m.scale.y * 0.38, tz: m.position.z,
+            dist: MOBILE ? 270 : 215, pol: 1.02 }, 2300);
+  } else if (s.cam) {
+    flyTo(s.cam, 2300);
+  }
+  cut(s.say);
+  tour.hold = (reduce ? 700 : (s.hold || 3600)) + 2400;
+  tour.wait = 0;
+}
+function stepTour(dt) {
+  tour.wait += dt * 1000;
+  if (tour.wait >= tour.hold && !camTween && !tween) nextTourStep();
+}
+document.getElementById("tour").onclick = startTour;
+document.getElementById("cut-skip").onclick = endTour;
 
 function showProgram(p) {
   selectedEntity = null;
@@ -1844,7 +2052,13 @@ renderer.domElement.addEventListener("click", e => {
   ray.setFromCamera(ptr, camera);
   const hitM = ray.intersectObjects(masses, false)[0];
   const hitQ = ray.intersectObjects(quarter.children, true)[0];
-  if (hitM && (!hitQ || hitM.distance < hitQ.distance)) return showEntity(hitM.object.userData.i);
+  if (hitM && (!hitQ || hitM.distance < hitQ.distance)) {
+    // arrive, then read: the camera glides to the mass and the dossier opens in flight
+    const m = hitM.object, i = m.userData.i;
+    flyTo({ tx: m.position.x, ty: m.scale.y * 0.42, tz: m.position.z,
+            dist: MOBILE ? 240 : 190, pol: 0.98 }, 1300);
+    return showEntity(i);
+  }
   if (hitQ) { let o = hitQ.object; while (o && !o.userData.prog) o = o.parent; if (o) showProgram(o.userData.prog); }
 });
 
@@ -1905,8 +2119,10 @@ addEventListener("keydown", e => {
   if (e.key.toLowerCase() === "p" && MODE === "orbit") planView();
   if (e.key.toLowerCase() === "n") setDusk(!LIFE.dusk);
   if (e.key.toLowerCase() === "l") toggleLife();
+  if (e.key.toLowerCase() === "t") startTour();
   if (e.key === "Escape") {
-    if (MODE === "walk") exitWalk(); else closePanel();
+    if (tour) endTour();
+    else if (MODE === "walk") exitWalk(); else closePanel();
     document.body.classList.remove('notes-open');notesBtn.setAttribute('aria-expanded','false');
   }
 });
@@ -1949,11 +2165,18 @@ function tick(now) {
     applyTween(p);
     if (p >= 1) tween = null;
   }
-  if (LIFE.on && !reduce) { LIFE.t += dt; stepCrowd(dt); stepPulses(dt); }
+  stepCamTween(now);
+  if (LIFE.on && !reduce) { LIFE.t += dt; stepCrowd(dt); stepPulses(dt); stepClouds(dt); }
+  if (tour) stepTour(dt);
   if (MODE === "walk") {
     stepWalk(dt); updateNear();
     mapPlayer.setAttribute('transform',`translate(${walker.x},${walker.z}) rotate(${180-walker.yaw*180/Math.PI})`);
   }
+
+  selRing.visible = selectedEntity !== null && MODE === "orbit";
+  if (selRing.visible) ringAt(selRing, selectedEntity);
+  hoverRing.visible = hovered >= 0 && MODE === "orbit" && selectedEntity !== hovered;
+  if (hoverRing.visible) ringAt(hoverRing, hovered, 10);
 
   const tops = topThree(FI);
   for (let i = 0; i < plates.length; i++) {
@@ -1980,9 +2203,25 @@ function tick(now) {
   if (STILL && frames > 34) return;       // software rendering is slow; 34 settles it
   const moving = MODE === 'walk' && (Object.values(keys).some(Boolean) || tm.fx || tm.fz || Math.hypot(walker.vx,walker.vz) > .01);
   const alive = LIFE.on && !reduce && !STILL;
-  if (tween || moving || alive || now < activeUntil || frames < 3) frameRequest = requestAnimationFrame(tick);
+  if (tween || camTween || tour || moving || alive || now < activeUntil || frames < 3) frameRequest = requestAnimationFrame(tick);
 }
 invalidate();
+
+/* the opening sweep: the sheet is read from the air first, and settles
+   into its framing. Any pointer or wheel hands the camera over mid-flight
+   — arrival is never mandatory. Skipped for reduced motion and deep links,
+   which have somewhere specific to be. Lives here because flyTo needs the
+   loop it wakes. */
+if (!reduce && !STILL && !location.hash &&
+    !/[?&](e=|walk|about|notes)/.test(location.search)) {
+  const end = { az: orbit.az, pol: 0.88, dist: orbit.dist, tx: orbit.tx, ty: orbit.ty, tz: orbit.tz };
+  Object.assign(orbit, {
+    az: orbit.az - 1.05, pol: 1.44,
+    dist: Math.min(1900, orbit.dist * 1.55), ty: orbit.ty + 70
+  });
+  applyOrbit();
+  flyTo(end, 2700);
+}
 
 addEventListener("resize", () => {
   MOBILE = compactViewport();
@@ -2023,6 +2262,9 @@ if (new URLSearchParams(location.search).has('qa')) window.__atlasQA = {
                  expo:gradeMat.uniforms.expo.value,env:scene.environmentIntensity}),
   pulses: () => pulses.visible ? pulses.count : 0,
   walkTo: (x,z) => { walker.x=x; walker.z=z; invalidate(600); },
+  tour: () => tour ? { step: tour.i, steps: tour.steps.length, wait: tour.wait, hold: tour.hold } : null,
+  camTween: () => !!camTween,
+  clouds: () => ({ count: clouds.list.length, visible: clouds.group.visible }),
   /* Does the plan actually fit, and do the names read? Measured against the
      same free rectangle the camera solved for, and against the labels the
      overlay really emitted — not against the intention. */

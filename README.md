@@ -17,6 +17,10 @@ The same statement lives inside the instrument: the **colophon** opens from the 
 ## Experience
 
 - A responsive exhibition HUD with frame navigation, an entity index and a reading room.
+- **A guided tour (T):** the instrument tells its own argument — frames, plan, dusk, the origin — in eight captioned arrivals. Any drag takes the camera back mid-sentence.
+- **Choreographed camera:** selections, the plan, the tour and the opening sweep all arrive rather than teleport; one `flyTo` system with the shortest arc, cancelled the moment a hand touches the canvas.
+- The reader's marks: a dashed ink circle at the foot of the entity being read, a fainter one under the pointer — drafting language, not glow.
+- Weather as a depth cue: eight slow ink-wash clouds that take the dusk with everything else and step aside for the plan.
 - Procedural contour architecture: measures shape lobes, atriums, floors, ribs, twist and height.
 - A plan that actually fits: the camera solves the free area the HUD leaves, turns the sheet when the survey runs diagonally, and names every entity by rank.
 - A city that is inhabited by its own numbers: two walking figures per point of access, one street lamp per point of evidence, traffic on every proposed connection, and a dusk switch that makes the lighting legible.
@@ -49,6 +53,7 @@ Publication is deliberately manual: set the repository's Pages source to **GitHu
 
 | Action | Desktop | Touch |
 | --- | --- | --- |
+| Guided tour | Tour; T | Tour, in About / index |
 | Orbit | Drag; arrow keys | One-finger drag |
 | Zoom | Wheel; + / − | Pinch |
 | Change frame | Bottom tabs; 1 / 2 / 3 | Bottom tabs |
@@ -66,7 +71,7 @@ Additional controls are available in About / index on narrow screens. Links: `#f
 
 ## Sources and verification
 
-[Method and formulas](METHOD.md) · [Design reference study](RESEARCH.md) · [Validation and limits](QA.md) · [Credits and rights](NOTICE.md)
+[Design foundations](DESIGN.md) · [Method and formulas](METHOD.md) · [Design reference study](RESEARCH.md) · [Validation and limits](QA.md) · [Credits and rights](NOTICE.md)
 
 The numerical dataset is authored and uncalibrated. Public notes frame exploratory questions; the Taliesin continuation correction includes its primary source. Other notes do not establish current programmes, accreditation, costs or partnerships. Source artwork is not redistributed.
 

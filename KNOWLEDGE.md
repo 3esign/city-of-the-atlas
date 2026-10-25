@@ -20,3 +20,9 @@
 - Manual Pages workflow: repository preparation is authorized; live hosting was not explicitly requested.
 - Public notes are authored questions instead of unverified biographies or categorical institutional judgments. Earlier research artifacts remain preserved outside this release.
 - All original code is credited to Semir Poturak / Svemir under MIT. Source institutions retain their own identity and rights.
+
+## Experience (2026-10-25, session c1792925216310h276)
+- One camera choreography, many arrivals: a single cancellable flyTo serves intro, selection, plan and tour — no parallel state machines. A pointer-down cancels any flight: the camera belongs to the visitor, narration only borrows it.
+- Numeric QA flags do not see ink weight: a ground-plane dashed ring that "exists" can be invisible at grazing camera pitch. Dash length + opacity + radius pad are the levers (WebGL linewidth is not). Verify signature marks by screenshot review, not by presence flags.
+- Vision-model review of screenshots found what rects missed: ring invisibility, panel scrollbar crowding the floating CTA, clouds out of frame at high pitch. Photograph the feature at the angle where it must read.
+- Billboards drawn from layered canvas radial gradients read as ink wash, not sprites, when opacity stays low and the grade chain treats them like everything else.

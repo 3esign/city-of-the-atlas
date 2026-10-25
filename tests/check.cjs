@@ -19,4 +19,11 @@ assert.equal((read('atlas-table.html').match(/<article/g)||[]).length,40,'21 ent
 for(const f of['index.html','atlas-table.html','README.md'])for(const s of['not affiliated with','Semir Poturak','Svemir','MIT'])assert(read(f).includes(s),`${f}: colophon statement "${s}"`);
 assert(read('NOTICE.md').includes('not affiliated with'));
 assert(read('vendor/THREE-LICENSE.txt').includes('Permission is hereby granted'));
+// the guided tour and its surfaces: engine, captions, controls, keyboard hint
+for(const s of['id="tour"','id="cut"','id="cut-skip"'])assert(html.includes(s),`tour surface ${s} missing`);
+const cj=read('city.js');
+for(const s of['function flyTo','stepCamTween','buildTour','startTour','endTour'])assert(cj.includes(s),`camera choreography missing ${s}`);
+for(const s of['exists to be argued with','One lamp per point of published evidence','widest movers'])assert(cj.includes(s),`tour caption missing: ${s.slice(0,24)}`);
+assert(cj.includes('camTween=null')||cj.includes('camTween = null'),'pointer must be able to cancel the camera');
+assert(read('README.md').includes('Tour'),'README documents the tour');
 console.log('PASS: dataset ranges, frame bounds, DOM identity, local links, offline bundle, reading room, attribution and dependency license.');
