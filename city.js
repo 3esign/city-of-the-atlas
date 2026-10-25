@@ -1358,6 +1358,7 @@ applyOrbit();
 let camTween = null;
 function flyTo(to, dur = 1600) {
   if (MODE !== "orbit") return;
+  panGlide = null; panVX = panVY = 0;
   const from = { ...orbit };
   let dAz = (to.az !== undefined ? to.az : from.az) - from.az;
   dAz = ((dAz + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
@@ -1405,7 +1406,8 @@ renderer.domElement.addEventListener("pointerdown", e => {
   renderer.domElement.setPointerCapture(e.pointerId);
   if (MODE === "walk") { walkDown(e); return; }
   camTween = null;                    // a hand on the canvas owns the camera
-  if (pts.size === 2) { pinch = pinchDist(); pinchMid = midPt(); drag = null; suppressPick = true; return; }
+  panGlide = null; panVX = panVY = 0;
+  if (pts.size === 2) { pinch = pinchDist(); pinchMid = midPt(); drag = null; panGlide = null; suppressPick = true; return; }
   // a mouse has more than one hand: left orbits, right / middle / shift pans
   const pan = e.pointerType === "mouse" && (e.button === 2 || e.button === 1 || e.shiftKey);
   drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId, touch: e.pointerType !== "mouse", pan };
@@ -1459,6 +1461,19 @@ function endPointer(e) {
   if (pts.size < 2) { pinch = 0; pinchMid = null; }
   if (MODE === "walk") { walkUp(e); return; }
   if (drag && e.pointerId === drag.id) { lastDrag = drag; drag = null; }
+  startPanGlide();
+}
+/* a pan that was still moving a moment ago keeps moving: momentum in px/s,
+   carried into the render loop and spent against friction there */
+function startPanGlide() {
+  if (panGlide) return;            // the first finger of the pair already threw
+  if (reduce) return;
+  if (performance.now() - panT > 100) return;      // the hand paused before lifting
+  const v = Math.hypot(panVX, panVY);
+  if (v < 250) return;                             // a deliberate stop stays stopped
+  panGlide = { x: panVX, y: panVY };
+  panVX = panVY = 0;
+  invalidate(1400);
 }
 let lastDrag = null;
 addEventListener("pointerup", endPointer);
@@ -1475,14 +1490,32 @@ function zoomBy(f) {
    aim slides opposite the drag, projected on the ground plane. The clamp
    keeps the city one firm gesture away no matter how far the aim wanders.
    Mouse: right-drag, middle-drag or shift-drag. Thumb: a two-finger drag
-   alongside the pinch it already owns. */
-function panBy(dx, dy) {
+   alongside the pinch it already owns. Shift+arrows pan by keyboard.
+   A released pan keeps its momentum: the city glides to rest under the
+   hand that threw it, unless the visitor asked us not to move things. */
+let panGlide = null;            // live inertia: px/s, decays in the loop
+let panVX = 0, panVY = 0, panT = 0;
+function panBy(dx, dy, glide) {
   const s = 2 * orbit.dist * Math.tan(camera.fov * Math.PI / 360) / VH;
   const rx = Math.cos(orbit.az), rz = -Math.sin(orbit.az);   // camera right
   const ux = Math.sin(orbit.az),  uz = Math.cos(orbit.az);   // ground, toward the eye
-  orbit.tx = Math.max(-700, Math.min(700, orbit.tx + (-rx * dx + ux * dy) * s));
-  orbit.tz = Math.max(-700, Math.min(700, orbit.tz + ( rz * dx + uz * dy) * s));
+  const wantX = orbit.tx + (-rx * dx + ux * dy) * s;
+  const wantZ = orbit.tz + ( rz * dx + uz * dy) * s;
+  const nx = Math.max(-700, Math.min(700, wantX));
+  const nz = Math.max(-700, Math.min(700, wantZ));
+  const hit = (nx !== wantX) || (nz !== wantZ);            // pressed against the clamp?
+  orbit.tx = nx; orbit.tz = nz;
   applyOrbit();
+  if (glide) return;
+  // remember the throw: an exponential mean of recent px/s. A long silence
+  // between samples (a slow hand, a coalesced event) re-seeds the estimate
+  // from the sample itself instead of discarding it.
+  const now = performance.now(), idt = (now - panT) / 1000;
+  const a = panT ? Math.exp(-Math.min(idt, 0.12) / 0.05) : 0, v = 1 - a;
+  panVX = a * panVX + v * dx / Math.max(Math.min(idt, 0.12), 0.004);
+  panVY = a * panVY + v * dy / Math.max(Math.min(idt, 0.12), 0.004);
+  panT = now;
+  if (hit) panVX = panVY = 0;   // the wall does not throw the city back
 }
 renderer.domElement.addEventListener("wheel", e => {
   if (MODE !== "orbit") return;
@@ -2277,7 +2310,7 @@ E.forEach((d,i) => { const o = document.createElement('option');o.value=i;o.text
 entitySelect.onchange = () => {if(entitySelect.value !== '') showEntity(+entitySelect.value);};
 function resetInput() {
   for (const k in keys) delete keys[k];
-  pts.clear(); drag = lastDrag = null; pinch = 0;
+  pts.clear(); drag = lastDrag = null; pinch = 0; panGlide = null; panVX = panVY = 0;
   tm.fx = tm.fz = 0; tm.run = false; stickId = lookId = null; lookLast = null;
   walker.vx = walker.vz = 0;
   stickEl.classList.remove('live'); stickNub.style.transform = '';
@@ -2413,7 +2446,15 @@ addEventListener("keydown", e => {
     if (e.key === '+' || e.key === '=') zoomBy(.9);
     if (e.key === '-') zoomBy(1.1);
     if (e.key.startsWith('Arrow')) {
-      e.preventDefault(); userMoved = true;
+      e.preventDefault(); userMoved = true; panGlide = null;
+      if (e.shiftKey) {                            // the arrows pan; alone they orbit
+        const st = 70;
+        if (e.key === 'ArrowLeft')  panBy( st, 0);   // the grab axis is inverted:
+        if (e.key === 'ArrowRight') panBy(-st, 0);   // a key presses the view, a
+        if (e.key === 'ArrowUp')    panBy(0, -st);   // hand drags the world
+        if (e.key === 'ArrowDown')  panBy(0,  st);
+        return;
+      }
       if(e.key==='ArrowLeft') orbit.az += .08;
       if(e.key==='ArrowRight') orbit.az -= .08;
       if(e.key==='ArrowUp') orbit.pol = Math.max(.10,orbit.pol-.06);
@@ -2477,6 +2518,13 @@ function tick(now) {
     if (p >= 1) tween = null;
   }
   stepCamTween(now);
+  if (panGlide) {
+    panBy(panGlide.x * dt, panGlide.y * dt, true);
+    const f = Math.exp(-dt / 0.30);                // friction: gone in ~a second
+    panGlide.x *= f; panGlide.y *= f;
+    if (Math.hypot(panGlide.x, panGlide.y) < 40) panGlide = null;
+    else invalidate(400);                          // keep the loop awake while it slides
+  }
   if (LIFE.on && !reduce) { LIFE.t += dt; stepCrowd(dt); stepPulses(dt); stepClouds(dt); }
   if (tour) stepTour(dt);
   if (ENGINE.on) stepEngine(dt);
@@ -2575,6 +2623,8 @@ if (new URLSearchParams(location.search).has('qa')) window.__atlasQA = {
   pulses: () => pulses.visible ? pulses.count : 0,
   walkTo: (x,z) => { walker.x=x; walker.z=z; invalidate(600); },
   tour: () => tour ? { step: tour.i, steps: tour.steps.length, wait: tour.wait, hold: tour.hold } : null,
+  pan: () => ({ gliding: !!panGlide, vx: panVX, vy: panVY,
+    age: Math.round(performance.now() - panT) }),
   engine: () => ({ on: ENGINE.on, lens: ENGINE.lens, nodes: enginePick.length,
     lineVerts: engineLineGeo.getAttribute("position").count,
     readoutOn: document.getElementById("engine-readout").classList.contains("on"),

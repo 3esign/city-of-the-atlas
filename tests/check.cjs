@@ -52,6 +52,13 @@ assert(cj.includes('pinchMid'),'two-finger pan missing');
 assert(cj.includes('contextmenu'),'right-drag must not raise a menu over the pan');
 assert(html.includes('shift-drag or right-drag to pan'),'desktop pan hint missing');
 assert(html.includes('two fingers</b> to pan'),'touch pan hint missing');
+/* pan keeps its momentum and answers the keyboard, and both yield to any
+   other claim on the camera */
+assert(cj.includes('function startPanGlide'),'pan inertia missing');
+assert(cj.includes('panGlide = null; panVX = panVY = 0;'),'a new hand must stop the glide');
+assert(cj.includes('if (reduce) return;'),'reduced motion must not glide');
+assert(/e\.shiftKey\) \{[^}]*ArrowLeft/.test(cj),'Shift+arrows must pan');
+assert(html.includes('Shift</kbd>+arrows to pan'),'keyboard pan hint missing');
 assert(/const ENGINE = \{ on: true/.test(cj),'engine must be the default reading');
 assert(cj.includes('() => toggleEngine(true)'),'engine state must be applied on the first frame');
 console.log('PASS: dataset ranges, frame bounds, DOM identity, local links, offline bundle, reading room, attribution and dependency license.');
