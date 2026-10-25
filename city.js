@@ -1852,20 +1852,36 @@ renderer.domElement.addEventListener("click", e => {
    signature, the footer, the drawer and ?about. */
 const colophon = document.getElementById('colophon');
 let coloReturn = null;
-function openColophon() {
-  coloReturn = document.activeElement;
+let coloBackground = [];
+function openColophon(trigger = document.activeElement) {
+  if (colophon.classList.contains('on')) return;
+  coloReturn = trigger;
+  if (coloReturn.closest('#margin')) coloReturn = notesBtn;
+  resetInput();
   document.body.classList.remove('notes-open'); notesBtn.setAttribute('aria-expanded', 'false');
+  coloBackground = [...document.body.children].filter(el => el !== colophon && !['SCRIPT','STYLE'].includes(el.tagName)).map(el => [el, el.inert]);
+  coloBackground.forEach(([el]) => { el.inert = true; });
   colophon.classList.add('on'); document.body.classList.add('colophon-open');
+  colophon.scrollTop = 0;
   document.getElementById('co-close').focus();
 }
 function closeColophon() {
   colophon.classList.remove('on'); document.body.classList.remove('colophon-open');
-  if (coloReturn && coloReturn.focus) coloReturn.focus(); coloReturn = null;
+  coloBackground.forEach(([el, inert]) => { el.inert = inert; }); coloBackground = [];
+  resetInput();
+  if (coloReturn && coloReturn.focus) coloReturn.focus({preventScroll:true}); coloReturn = null;
 }
 document.querySelectorAll('[data-colophon]').forEach(el =>
-  el.addEventListener('click', e => { e.preventDefault(); openColophon(); }));
+  el.addEventListener('click', e => { e.preventDefault(); openColophon(el); }));
 document.getElementById('co-close').onclick = closeColophon;
 colophon.addEventListener('click', e => { if (e.target === colophon) closeColophon(); });
+colophon.addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const items = [...colophon.querySelectorAll('button,a[href]')];
+  const first = items[0], last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 
 addEventListener("keydown", e => {
   if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.target.isContentEditable) return;

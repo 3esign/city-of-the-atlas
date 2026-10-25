@@ -6,6 +6,7 @@
 - Equal score neighborhoods overlap when the footprint expands. Use deterministic packing and disclose the positional offset.
 
 ## Experience
+- Modal focus must return to a visible trigger: a button inside a closed drawer is not a usable return target. Keep the close control reachable while long mobile content scrolls. Verified 2026-10-25 in session c1792925216310h276/qa-release.
 - Retain an alternate representation of the same data; it makes the expressive mapping reviewable.
 - Keep the non-spatial reading room generated from the same dataset.
 

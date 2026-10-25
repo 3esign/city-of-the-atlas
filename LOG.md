@@ -1,4 +1,6 @@
 # Release log
 
+2026-10-25 · Local presentation review: colophon focus isolation/return and persistent close, mobile geometry control, legible attribution footing and 320 px composition. Build and unchanged content checks pass; seven Chromium viewport sizes, 21 entity panels, offline bundle, no-WebGL and no-script reading room verified. Tailscale HTTP 200 also confirmed from laptop 3esign. Evidence: session c1792925216310h276/FINALNA_PROVERA.md and qa-release/. Local changes only; physical phone and exhibition hardware remain untested.
+
 2026-10-24 · Semir Poturak / Svemir · Contour edition: exhibition HUD, procedural geometry, comparison representation, documented mappings and reference study. 44 browser checks plus build checks passed. GitHub repository preparation and manual Pages workflow. Next: physical-phone review, school feedback and source calibration; activate Pages when requested.
 2026-10-25 · Semir Poturak / Svemir · Colophon edition: "About this experiment" dialog in the HUD (masthead signature, footer, drawer, `?about`), the same statement in the reading room and README; drawer flex-shrink overlap fixed on phones. Verified on 1440/1280 desktop, 390×844 portrait, 844×390 landscape, 834×1112 tablet, day and dusk; build checks extended to assert the colophon statement in every public surface.
