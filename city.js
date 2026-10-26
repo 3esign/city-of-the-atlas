@@ -4,7 +4,7 @@
  */
 
 import * as THREE from "three";
-import { M, E, FRAMES, PROGRAMS, LOTS } from "./data.js";
+import { M, E, FRAMES, PROGRAMS, LOTS, GRAMMAR, grammarForm, grammarReconstruct } from "./data.js";
 
 /* ── palette ──────────────────────────────────────────────────────────── */
 const C = {
@@ -375,19 +375,22 @@ const plaster = (hex, o = {}) => new THREE.MeshStandardMaterial({
   color: hex, side: THREE.DoubleSide, roughness: 0.78, metalness: 0, envMapIntensity: 0.95, ...o
 });
 const MAT = {
-  eel: new THREE.MeshPhysicalMaterial({
+  eel: addStipple(new THREE.MeshPhysicalMaterial({
     side: THREE.DoubleSide, color: C.pink, roughness: 0.46, metalness: 0,
     sheen: 0.7, sheenRoughness: 0.5, sheenColor: new THREE.Color(0xffb2d8),
     envMapIntensity: 1.0
-  }),
-  sat:  plaster(C.rose, { roughness: 0.64 }),
-  live: plaster(C.bone),
+  }), 0.24),
+  sat:  addStipple(plaster(C.rose, { roughness: 0.64 })),
+  live: addStipple(plaster(C.bone)),
   hist: plaster(C.graphite, { transparent: true, opacity: 0.62, roughness: 0.92, depthWrite: false }),
   base: new THREE.MeshPhysicalMaterial({
     color: C.slate, roughness: 0.12, metalness: 0.15,
     clearcoat: 1.0, clearcoatRoughness: 0.05, envMapIntensity: 1.6
   }),
   inkLine:  new THREE.LineBasicMaterial({ color: 0xf0e8d6, transparent: true, opacity: 0.5 }),
+  /* the drawn city: creases and ground dimensions speak ISO 128 —
+     continuous ink for edges and kote, dotted for the axes */
+  crease:   new THREE.LineBasicMaterial({ color: 0x141210, transparent: true, opacity: 0.40 }),
   filament: new THREE.MeshBasicMaterial({ color: C.ink, transparent: true, opacity: 0.72 }),
   figure:   new THREE.MeshStandardMaterial({ color: 0x1c1915, roughness: 0.82 })
 };
@@ -431,6 +434,31 @@ function mergeGeoms(list) {
 
 const hash = i => { const s = Math.sin(i * 127.1 + 11.7) * 43758.5453; return s - Math.floor(s); };
 
+/* ── tone stipple: drafting shading, in the shader ─────────────────────
+   The lower tones of a mass carry a fine fixed-pattern ink stipple, the
+   way a section is shaded by hand. One injected fragment chunk per
+   material, computed from the already-lit colour; no post pass, no
+   texture, no extra draw. Two CSS-pixel cells, so the grain is a property
+   of the sheet, not of the device. */
+function addStipple(mat, strength = 0.32) {
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uStippleInk = { value: new THREE.Color(0x141210) };
+    sh.fragmentShader =
+      "uniform vec3 uStippleInk;\n" +
+      sh.fragmentShader.replace("#include <dithering_fragment>",
+      `/* tone stipple */
+       {
+         float lum = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
+         vec2 cell = floor(gl_FragCoord.xy / ${(2 * DPR).toFixed(3)});
+         float n = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+         float band = smoothstep(0.46, 0.06, lum);
+         outgoingLight = mix(outgoingLight, uStippleInk, ${strength.toFixed(2)} * band * step(n, band * 0.62));
+       }
+       #include <dithering_fragment>`);
+  };
+  return mat;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    THE SETBACK TOWER — the silhouette IS the survey
    Eight measures, sorted descending so the mass always steps inward.
@@ -445,7 +473,7 @@ function stageOrder(d) {
 
 function buildTerraces(d, i, wall) {
   const parts = [];
-  const W = wall ? 17 : 11 + d.acc * 3.1;
+  const W = wall ? 17 : GRAMMAR.terrace.f(d.acc);
   const D = wall ? 252 : W * (0.70 + hash(i + 31) * 0.52);
   const R = Math.min(W, D) * 0.05;
   const add = (w, dp, y0, y1) => {
@@ -480,21 +508,18 @@ function buildTerraces(d, i, wall) {
 }
 
 
-// Contour pavilions. No random shape choices: every contour reads the dataset.
+// Contour pavilions. No random shape choices: every contour reads the dataset
+// through the published grammar (data.js) — one source for form and test.
 let geometryMode = 'contour';
-function contourRadius(d, a) {
-  const u=((a/(Math.PI*2)*8)%8+8)%8, i=Math.floor(u), t=u-i;
-  const blend=(1-Math.cos(t*Math.PI))/2;
-  return .30+.70*(d[M[i][0]]*(1-blend)+d[M[(i+1)%8][0]]*blend)/5;
-}
 function buildTower(d,i,wall){
   if(wall || geometryMode==='terraces')return buildTerraces(d,i,wall);
-  const W=23+d.acc*4, D=W, radius=W/2, floors=8+4*d.evi;
-  const twist=(d.aut-d.rec)*Math.PI/15, opening=.14+.045*d.acc;
+  const G=grammarForm(d);
+  const W=G.radius*2, D=W, radius=G.radius, floors=G.floors;
+  const twist=G.twist, opening=G.opening;
   const positions=[], segments=64;
   function vertex(a,y,inner=false){
-    const taper=1-(.10+.035*d.mat)*y+.24*d.wld/5*Math.sin(Math.PI*y)-.20*d.epi/5*Math.sin(2*Math.PI*y);
-    const contour=contourRadius(d,a);
+    const taper=G.taper(y);
+    const contour=G.contour(a);
     const r=radius*(inner?Math.min(opening,contour*.60):contour)*taper;
     const q=a+twist*y;
     return [Math.cos(q)*r,y,Math.sin(q)*r];
@@ -569,13 +594,12 @@ E.forEach((d, i) => {
   city.add(m); masses.push(m);
   colliders.push({ x: L.x, z: L.z, r: Math.max(W, D) * 0.5 + 1.5, wall: L.wall, w: W, dp: D });
 
-  // ruins keep a pale outline once the solid has gone translucent
-  if (d.kind === "hist") {
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 24), MAT.inkLine);
-    e.position.set(L.x, 0, L.z); e.scale.y = L.h;
-    city.add(e); m.userData.edge = e;
-    m.renderOrder = 2;
-  }
+  /* the drawn city: every mass carries its own crease linework (ISO 128,
+     continuous = visible edges). A child of the mesh, so it follows every
+     resurvey without being told. */
+  const crease = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 22), MAT.crease);
+  m.add(crease); m.userData.crease = crease;
+  if (d.kind === "hist") m.renderOrder = 2;
 });
 
 /* ── nameplates: diegetic signs, one small canvas each ────────────────── */
@@ -640,6 +664,59 @@ function ringAt(ring, i, pad = 13) {
   ring.scale.set(R, 1, R);
   ring.visible = true;
 }
+
+/* ── kotiranje: the sheet carries its dimensions ────────────────────────
+   Thin dimension lines on the ground, one kota per mass footprint, dotted
+   axes across the survey — the ISO 128 line values the overlay already
+   cites, drawn where the plan lives. Built from the layout, rebuilt when
+   the city is resurveyed; the Dimensions toggle (body.annotations) shows
+   them, because a drawing dims itself until asked. */
+const dims = new THREE.Group(); dims.visible = false; scene.add(dims);
+const dimThin = new THREE.LineBasicMaterial({ color: 0x141210, transparent: true, opacity: 0.55 });
+const dimAxis = new THREE.LineDashedMaterial({ color: 0x141210, transparent: true, opacity: 0.38, dashSize: 1.6, gapSize: 2.8 });
+function buildDims() {
+  dims.children.forEach(c => {
+    c.geometry && c.geometry.dispose();
+    if (c.material.map) c.material.map.dispose();
+  });
+  dims.clear();
+  const Y = 0.16, pts = [];
+  const seg = (ax, az, bx, bz) => pts.push(new THREE.Vector3(ax, Y, az), new THREE.Vector3(bx, Y, bz));
+  /* the two city axes, dotted: the ose of the survey */
+  seg(-GROUND / 2, 0, GROUND / 2, 0);
+  seg(0, -GROUND / 2, 0, GROUND / 2);
+  const axes = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.slice(0, 4)), dimAxis);
+  axes.computeLineDistances(); dims.add(axes);
+  /* one kota per free-standing mass: extension lines, dimension line,
+     oblique ticks, and the number itself as a small plate on the sheet */
+  const edgePts = [];
+  masses.forEach(m => {
+    if (m.userData.wall) return;
+    const w = m.userData.w, dp = m.userData.dp, x = m.position.x, z = m.position.z;
+    const z0 = z - dp / 2 - 8;
+    const line = (ax, az, bx, bz) => edgePts.push(new THREE.Vector3(ax, Y, az), new THREE.Vector3(bx, Y, bz));
+    line(x - w / 2, z - dp / 2, x - w / 2, z0 - 2.4);       // extension, left
+    line(x + w / 2, z - dp / 2, x + w / 2, z0 - 2.4);       // extension, right
+    line(x - w / 2, z0, x + w / 2, z0);                     // the dimension line
+    line(x - w / 2 - 1.1, z0 + 1.1, x - w / 2 + 1.1, z0 - 1.1);   // ticks
+    line(x + w / 2 - 1.1, z0 + 1.1, x + w / 2 + 1.1, z0 - 1.1);
+    const cv = document.createElement("canvas"); cv.width = 128; cv.height = 48;
+    const g = cv.getContext("2d");
+    g.font = "600 30px ui-monospace, Consolas, monospace";
+    g.fillStyle = "#ffffff"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(String(Math.round(w)), 64, 26);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthTest: false, fog: false }));
+    sp.renderOrder = 3; sp.scale.set(10, 10 * 48 / 128, 1);
+    sp.position.set(x, Y + 1.2, z0 - 4.5);
+    sp.material.color.setHex(document.body.classList.contains("dusk") ? 0xece6d9 : 0x141210);
+    dims.add(sp);
+  });
+  dims.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(edgePts), dimThin));
+  dims.visible = document.body.classList.contains("annotations");
+}
+buildDims();
 
 /* ═══════════════════════════════════════════════════════════════════════
    FILAMENTS — eel's own hairline wires, doing analytical work:
@@ -878,7 +955,9 @@ function renderEngineReadout() {
 }
 
 function setLens(k) {
+  const was = ENGINE.lens;
   ENGINE.lens = (k === ENGINE.lens) ? -1 : k;
+  if (ENGINE.lens >= 0 && was < 0) SOUND.voices.lens();
   engineNodes.forEach(n => {
     const s = n.userData.i === ENGINE.lens ? 1.5 : 1;
     n.scale.setScalar(s);
@@ -1287,12 +1366,17 @@ function applyLight(k = LIFE.dusk ? DUSK : DAY) {
   const mark = LIFE.dusk ? 0xece6d9 : 0x141210;   // ink stays ink after dark
   selRing.material.color.setHex(mark);
   hoverRing.material.color.setHex(mark);
+  MAT.crease.color.setHex(mark);
+  dimThin.color.setHex(mark);
+  dimAxis.color.setHex(mark);
+  dims.children.forEach(c => { if (c.isSprite) c.material.color.setHex(mark); });
   engineTint(mark);
   groundMesh.material.color.setHex(LIFE.dusk ? 0x8d8b84 : 0xffffff);
   renderer.shadowMap.needsUpdate = true;
 }
 function setDusk(on) {
   LIFE.dusk = on;
+  SOUND.voices.dusk();
   document.body.classList.toggle("dusk", on);
   applyLight();
   invalidate(900);
@@ -1301,6 +1385,105 @@ function setDusk(on) {
 /* everything that is placed relative to a mass has to move when the city
    is resurveyed; one call, so nothing is forgotten */
 function relocateLife() { relightLamps(); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SOUND — the first tone. Silence is the ground, wind is the voice.
+   A parameter wind (looped noise through a lowpass that breathes, one LFO)
+   and a 55 Hz sub-hum carry the room; four synthesized UI tones answer the
+   hand. Zero asset bytes, zero dependencies. The context is only created
+   by a gesture, the sample rate is read, never assumed, and the mute is
+   always visible (M) and remembered. BotW's model: quiet, then a few tones.
+   ═══════════════════════════════════════════════════════════════════════ */
+const SOUND = (() => {
+  const KEY = "atlas-sound";
+  let want = localStorage.getItem(KEY) === null ? true : localStorage.getItem(KEY) === "1";
+  let ctx = null, master = null, windGain = null, windFilter = null;
+  function build() {
+    if (ctx || !want) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    ctx = new AC();
+    master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
+    /* the wind: two seconds of brownish noise, looped, through a lowpass
+       an LFO breathes between ~420 and ~880 Hz; the gain sits under speech */
+    const len = 2 * ctx.sampleRate;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let v = 0;
+    for (let i = 0; i < len; i++) { v = v * 0.985 + (Math.random() * 2 - 1) * 0.02; d[i] = v * 9; }
+    const noise = ctx.createBufferSource(); noise.buffer = buf; noise.loop = true;
+    windFilter = ctx.createBiquadFilter();
+    windFilter.type = "lowpass"; windFilter.frequency.value = 650; windFilter.Q.value = 0.4;
+    windGain = ctx.createGain(); windGain.gain.value = LIFE.dusk ? 0.055 : 0.075;
+    noise.connect(windFilter); windFilter.connect(windGain); windGain.connect(master);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
+    const lfoGain = ctx.createGain(); lfoGain.gain.value = 230;
+    lfo.connect(lfoGain); lfoGain.connect(windFilter.frequency);
+    /* the sub-hum: the city's own floor */
+    const hum = ctx.createOscillator(); hum.frequency.value = 55;
+    const humGain = ctx.createGain(); humGain.gain.value = 0.02;
+    hum.connect(humGain); humGain.connect(master);
+    noise.start(); lfo.start(); hum.start();
+    master.gain.setTargetAtTime(1, ctx.currentTime, 1.2);   // fade up, never pop
+    ctx.addEventListener("statechange", () => { if (ctx.state === "running") apply(); });
+    document.addEventListener("visibilitychange", () => {
+      if (!ctx) return;
+      if (document.hidden) ctx.suspend().catch(() => {});
+      else ctx.resume().catch(() => {});
+    });
+  }
+  function apply() {
+    if (!ctx) return;
+    const target = want && !document.hidden ? 1 : 0;
+    master.gain.setTargetAtTime(target, ctx.currentTime, 0.25);
+    if (windGain) windGain.gain.setTargetAtTime(LIFE.dusk ? 0.055 : 0.075, ctx.currentTime, 0.8);
+  }
+  /* one envelope, four voices: tick, select, lens, dusk. 20–80 ms, dry. */
+  function tone(f, dur, gain, type = "sine", glide = 0) {
+    if (!ctx || ctx.state !== "running" || !want) return;
+    const t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = type;
+    o.frequency.setValueAtTime(f, t0);
+    if (glide) o.frequency.exponentialRampToValueAtTime(glide, t0 + dur);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.0001, t0);
+    env.gain.linearRampToValueAtTime(gain, t0 + 0.005);
+    env.gain.exponentialRampToValueAtTime(0.0004, t0 + dur);
+    o.connect(env); env.connect(master);
+    o.start(t0); o.stop(t0 + dur + 0.03);
+  }
+  const voices = {
+    tick:   () => tone(1500, 0.035, 0.07, "triangle"),
+    select: () => tone(1800, 0.045, 0.09),
+    lens:   () => tone(2200, 0.06, 0.08, "sine", 2600),
+    dusk:   () => tone(420, 0.16, 0.07, "sine", 210)
+  };
+  function toggle(on) {
+    want = (on === undefined) ? !want : on;
+    localStorage.setItem(KEY, want ? "1" : "0");
+    if (want) build();
+    apply();
+    const b = document.getElementById("sound");
+    if (b) { b.setAttribute("aria-pressed", String(want));
+             b.textContent = want ? "Sound: on" : "Sound: off"; }
+    if (want && voices.tick) voices.tick();
+  }
+  const gesture = () => {
+    if (want) build();
+    apply();
+    removeEventListener("pointerdown", gesture);
+    removeEventListener("keydown", gesture);
+    removeEventListener("touchend", gesture);
+  };
+  addEventListener("pointerdown", gesture, { passive: true });
+  addEventListener("keydown", gesture);
+  addEventListener("touchend", gesture, { passive: true });
+  return { get want() { return want; }, toggle, voices,
+           get state() { return ctx ? ctx.state : "none"; },
+           get rate() { return ctx ? ctx.sampleRate : 0; } };
+})();
+document.getElementById("sound").onclick = () => SOUND.toggle();
+
 
 /* ═══════════════════════════════════════════════════════════════════════
    CAMERA — two positions toward the same institution.
@@ -1433,7 +1616,12 @@ addEventListener("pointermove", e => {
     if (pinch && d > 1) { zoomBy(pinch / d); userMoved = true; }
     if (pinchMid) {
       const pdx = m.x - pinchMid.x, pdy = m.y - pinchMid.y;
-      if (pdx || pdy) { panBy(pdx, pdy); userMoved = true; if (Math.abs(pdx) + Math.abs(pdy) > 6) leavePlanUI(); }
+      if (pdx || pdy) {
+        // a thumb on glass reads slower than a mouse on a desk: the two-finger
+        // pan carries extra gain so the city keeps up with the hand
+        const g = TOUCH && !drag ? 1.5 : 1;
+        panBy(pdx * g, pdy * g); userMoved = true; if (Math.abs(pdx) + Math.abs(pdy) > 6) leavePlanUI();
+      }
     }
     pinch = d; pinchMid = m;
     return;
@@ -1468,9 +1656,9 @@ function endPointer(e) {
 function startPanGlide() {
   if (panGlide) return;            // the first finger of the pair already threw
   if (reduce) return;
-  if (performance.now() - panT > 100) return;      // the hand paused before lifting
+  if (performance.now() - panT > 140) return;      // the hand paused before lifting
   const v = Math.hypot(panVX, panVY);
-  if (v < 250) return;                             // a deliberate stop stays stopped
+  if (v < 130) return;                             // a deliberate stop stays stopped
   panGlide = { x: panVX, y: panVY };
   panVX = panVY = 0;
   invalidate(1400);
@@ -1718,6 +1906,7 @@ const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function setFrame(fi, animate = true) {
   if (fi === FI && tween) return;
   FI = fi;
+  SOUND.voices.tick();
   history.replaceState(null, "", `#f${fi}`);
   drawGround(FI); groundTex.needsUpdate = true;
   renderFrameUI();
@@ -1743,10 +1932,10 @@ function applyTween(p) {
     const q = ease(Math.max(0, Math.min(1, (p - stagger) / (1 - stagger))));
     const x = a.x + (b.x - a.x) * q, z = a.z + (b.z - a.z) * q, h = a.h + (b.h - a.h) * q;
     m.position.x = x; m.position.z = z; m.scale.y = h;
-    if (m.userData.edge) { m.userData.edge.position.set(x, 0, z); m.userData.edge.scale.y = h; }
     const col = colliders[i]; col.x = x; col.z = z;
     plates[i].position.set(x, Math.min(h + 10, 32), z);
   }
+  if (p >= 1) buildDims();          // the ground dimensions follow the survey
   if (tween.camFrom && MODE === "orbit") {
     const q = ease(p);
     for (const k of ["tx", "tz", "dist", "ty"])
@@ -1982,6 +2171,7 @@ function openPanel(focus = true) {
 }
 
 function showEntity(i, focus = true) {
+  if (focus) SOUND.voices.select();
   selectedEntity = i;
   const d = E[i], v = variance(i), order = stageOrder(d);
   pbody.innerHTML = `
@@ -2186,7 +2376,7 @@ function closeExhibit(){document.body.classList.add('exploring');}
 renderer.domElement.addEventListener('pointerdown',e=>{closeExhibit();if(tour)endTour();});
 document.addEventListener('atlas-focus',closeExhibit);
 document.getElementById('feature').onclick=()=>document.dispatchEvent(new CustomEvent('atlas-focus',{detail:0}));
-document.getElementById('annotate').onclick=e=>{const on=document.body.classList.toggle('annotations');e.currentTarget.setAttribute('aria-pressed',String(on));invalidate();};
+document.getElementById('annotate').onclick=e=>{const on=document.body.classList.toggle('annotations');e.currentTarget.setAttribute('aria-pressed',String(on));dims.visible=on;invalidate();};
 /* close the drawer before firing the control: a view that measures the
    free screen must not measure it through an open drawer */
 document.querySelectorAll('[data-control]').forEach(button=>button.onclick=()=>{
@@ -2469,6 +2659,7 @@ addEventListener("keydown", e => {
   if (e.key.toLowerCase() === "l") toggleLife();
   if (e.key.toLowerCase() === "t") startTour();
   if (e.key.toLowerCase() === "e") toggleEngine();
+  if (e.key.toLowerCase() === "m") SOUND.toggle();
   if (e.key === "Escape" && ENGINE.lens >= 0) { setLens(-1); return; }
   if (e.key === "Escape") {
     if (tour) endTour();
@@ -2520,9 +2711,9 @@ function tick(now) {
   stepCamTween(now);
   if (panGlide) {
     panBy(panGlide.x * dt, panGlide.y * dt, true);
-    const f = Math.exp(-dt / 0.30);                // friction: gone in ~a second
+    const f = Math.exp(-dt / 0.55);                // friction: a long, quiet settle
     panGlide.x *= f; panGlide.y *= f;
-    if (Math.hypot(panGlide.x, panGlide.y) < 40) panGlide = null;
+    if (Math.hypot(panGlide.x, panGlide.y) < 22) panGlide = null;
     else invalidate(400);                          // keep the loop awake while it slides
   }
   if (LIFE.on && !reduce) { LIFE.t += dt; stepCrowd(dt); stepPulses(dt); stepClouds(dt); }
@@ -2634,6 +2825,26 @@ if (new URLSearchParams(location.search).has('qa')) window.__atlasQA = {
     pulses: engPulses.count,
     setLensQa: k => setLens(k),
     toggle: () => toggleEngine() }),
+  sound: () => ({ want: SOUND.want, state: SOUND.state, rate: SOUND.rate,
+    pressed: document.getElementById("sound").getAttribute("aria-pressed"),
+    label: document.getElementById("sound").textContent,
+    stored: localStorage.getItem("atlas-sound"),
+    toggle: () => SOUND.toggle() }),
+  craft: () => ({
+    creases: masses.filter(m => m.userData.crease && m.userData.crease.visible !== undefined).length,
+    creaseVisible: masses[0].userData.crease.visible,
+    dimsVisible: dims.visible,
+    dimsChildren: dims.children.length,
+    stippled: [MAT.eel, MAT.sat, MAT.live].filter(m => !!m.onBeforeCompile).length,
+    drawCalls: sceneStats.calls,
+    grammar: () => {
+      const i = 1; const d = E[i];
+      const f = grammarForm(d);
+      const q = 3;   // honest measurement: three decimals off the drawing
+      const r0 = +f.radius.toFixed(q);
+      const radii = M.map((_, mi) => +(f.radius * f.contour(mi / 8 * Math.PI * 2)).toFixed(q));
+      return grammarReconstruct(f, r0, radii);
+    } }),
   camTween: () => !!camTween,
   clouds: () => ({ count: clouds.list.length, visible: clouds.group.visible }),
   /* Does the plan actually fit, and do the names read? Measured against the
