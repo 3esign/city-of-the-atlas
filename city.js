@@ -861,12 +861,15 @@ function refreshEngineLines() {
     const node = engineNodes[k];
     const lensed = ENGINE.lens >= 0;
     const active = weight(FI, M[k][0]) > 0;
-    const want = lensed ? (k === ENGINE.lens
-      ? E.map((_, i) => i) : [])
-      : (active ? engLeaders[k] : []);
+    /* want is read, not built: E.length draws everything (the lens), a
+       sorted leader list draws its members in order, null draws none —
+       no per-frame arrays for a thing the loop does sixty times a second */
+    const want = lensed ? (k === ENGINE.lens ? E.length : 0)
+      : (active ? engLeaders[k] : null);
     let n = 0;
     for (let i = 0; i < E.length; i++) {
-      const m = masses[i], draw = n < want.length;
+      const m = masses[i],
+            draw = want === E.length ? true : want ? n < want.length && want[n] === i : false;
       const X = draw ? m.position.x : node.position.x,
             Y = draw ? m.scale.y + 3 : node.position.y,
             Z = draw ? m.position.z : node.position.z;
@@ -895,10 +898,11 @@ function spawnEngPulse() {
   const k = live[(Math.random() * live.length) | 0];
   engPulseState.push({ k, i: (Math.random() * E.length) | 0, t: 0 });
 }
+const engPulseDummy = new THREE.Object3D();
+const engPulseTo = new THREE.Vector3();
 function stepEnginePulses(dt) {
   const want = MOBILE || TOUCH ? 12 : 26;
   while (engPulseState.length < want) spawnEngPulse();
-  const dummy = new THREE.Object3D();
   let n = 0;
   for (const s of engPulseState) {
     s.t += dt * 0.55;
@@ -906,11 +910,11 @@ function stepEnginePulses(dt) {
                     s.i = (Math.random() * E.length) | 0; }
     const node = engineNodes[s.k], m = masses[s.i];
     if (ENGINE.lens >= 0 && s.k !== ENGINE.lens) { continue; }
-    dummy.position.lerpVectors(node.position,
-      new THREE.Vector3(m.position.x, m.scale.y + 3, m.position.z), s.t);
-    dummy.scale.setScalar(1);
-    dummy.updateMatrix();
-    engPulses.setMatrixAt(n++, dummy.matrix);
+    engPulseTo.set(m.position.x, m.scale.y + 3, m.position.z);
+    engPulseDummy.position.lerpVectors(node.position, engPulseTo, s.t);
+    engPulseDummy.scale.setScalar(1);
+    engPulseDummy.updateMatrix();
+    engPulses.setMatrixAt(n++, engPulseDummy.matrix);
   }
   engPulses.count = n;
   engPulses.instanceMatrix.needsUpdate = true;
@@ -925,15 +929,16 @@ function engineFormula() {
     .map(([k, w]) => (w > 1 ? `${w}·` : "") + k);
   return `score(e) = ${w.join(" + ")}`;
 }
+let engReadoutHTML = null;
 function renderEngineReadout() {
-  if (!ENGINE.on) { engReadout.classList.remove("on"); return; }
+  if (!ENGINE.on) { engReadout.classList.remove("on"); engReadoutHTML = null; return; }
   engReadout.classList.add("on");
   const f = FRAMES[FI];
   if (ENGINE.lens >= 0) {
     const [k, nm] = M[ENGINE.lens], w = weight(FI, k);
     const rows = E.map((d, i) => ({ i, v: d[k] }))
       .sort((a, b) => b.v - a.v).slice(0, 6);
-    engReadout.innerHTML = `
+    const html = `
       <div class="er-hd"><span class="key">Engine · measure lens</span>
         <button type="button" class="er-x" aria-label="Clear lens">✕</button></div>
       <h3>${nm}${w ? ` <i>weight ×${w}</i>` : " <i>unused in this frame</i>"}</h3>
@@ -941,16 +946,21 @@ function renderEngineReadout() {
       ${rows.map(r => `<div class="er-row"><span class="n">${E[r.i].n}</span>
         <span class="b"><i style="width:${r.v * 20}%"></i></span>
         <span class="v">${r.v}</span></div>`).join("")}`;
-    engReadout.querySelector(".er-x").onclick = () => setLens(-1);
+    if (html !== engReadoutHTML) {
+      engReadoutHTML = html;
+      engReadout.innerHTML = html;
+      engReadout.querySelector(".er-x").onclick = () => setLens(-1);
+    }
   } else {
     const hov = hovered >= 0 ? E[hovered] : null;
-    engReadout.innerHTML = `
+    const html = `
       <div class="er-hd"><span class="key">Engine · frame 0${FI + 1} — ${f.name}</span></div>
       <div class="er-f">${engineFormula()}</div>
       ${hov ? `<div class="er-row er-live"><span class="n">${hov.n}</span>
         <span class="v">${f.score(hov)}</span></div>
         <div class="er-note">live — pointer is on this mass</div>`
             : `<div class="er-note">tap a node to read one measure · tap again to release</div>`}`;
+    if (html !== engReadoutHTML) { engReadoutHTML = html; engReadout.innerHTML = html; }
   }
 }
 
@@ -989,16 +999,20 @@ function engineTint(mark) {
 }
 document.getElementById("engine").onclick = () => toggleEngine();
 function stepEngine(dt) {
-  for (const n of engineNodes) {
+  let moved = 0;
+  engineNodes.forEach((n, s) => {
     const target = ENG_BASE + weight(FI, n.userData.k) * ENG_STEP;
-    n.position.y += (target - n.position.y) * Math.min(1, dt * (reduce ? 30 : 4.5));
-    const s = engineNodes.indexOf(n);
+    const d = (target - n.position.y) * Math.min(1, dt * (reduce ? 30 : 4.5));
+    n.position.y += d;
+    if (Math.abs(d) > moved) moved = Math.abs(d);
     const sp = engSigns[s];
     sp.position.set(n.position.x, n.position.y + 22 + (n.scale.x - 1) * 9, n.position.z);
-  }
+  });
   if (!reduce) { stepEnginePulses(dt); engPulses.visible = true; }
   else engPulses.visible = false;
-  refreshEngineLines();
+  /* the buffer upload owes a frame only while a node is still easing; setLens,
+     toggleEngine and engineTint repaint their own changes directly */
+  if (moved > 0.01) refreshEngineLines();
   if (frames % 6 === 0) renderEngineReadout();
 }
 paintEngineSigns();
@@ -2526,11 +2540,22 @@ const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 const labelEl = document.getElementById("label");
 let hovered = -1;
 
+/* the pointer's last word, spent once per frame: a mouse can report hundreds
+   of moves between two rendered frames, and each raycast here would race the
+   loop for the main thread — the very jank a full hand on the screen shows */
+let pendingPick = null;
 renderer.domElement.addEventListener("pointermove", e => {
   if (MODE !== "orbit") return;
   // a thumb has no hover: no floating label, and no raycast per move either
   if (e.pointerType !== "mouse") return;
-  ptr.set((e.clientX / VW) * 2 - 1, -(e.clientY / VH) * 2 + 1);
+  pendingPick = { x: e.clientX, y: e.clientY };
+  if (!frameRequest && !document.hidden) frameRequest = requestAnimationFrame(tick);
+});
+function processPick() {
+  const e = pendingPick;
+  if (!e) return;
+  pendingPick = null;
+  ptr.set((e.x / VW) * 2 - 1, -(e.y / VH) * 2 + 1);
   ray.setFromCamera(ptr, camera);
   const hitM = ray.intersectObjects(masses, false)[0];
   const hitQ = ray.intersectObjects(quarter.children, true)[0];
@@ -2542,8 +2567,8 @@ renderer.domElement.addEventListener("pointermove", e => {
     if (ENGINE.lens >= 0 && ENGINE.lens !== nd.i) labelEl.textContent += " · tap to switch lens";
     else if (ENGINE.lens === nd.i) labelEl.textContent += " · tap to release";
     labelEl.classList.add("on");
-    labelEl.style.left = (e.clientX + 15) + "px";
-    labelEl.style.top = (e.clientY - 11) + "px";
+    labelEl.style.left = (e.x + 15) + "px";
+    labelEl.style.top = (e.y - 11) + "px";
     renderer.domElement.style.cursor = "pointer";
     return;
   } else {
@@ -2558,15 +2583,15 @@ renderer.domElement.addEventListener("pointermove", e => {
   } else { hovered = -1; labelEl.textContent = ""; }
   if (labelEl.textContent) {
     labelEl.classList.add("on");
-    labelEl.style.left = (e.clientX + 15) + "px";
-    labelEl.style.top = (e.clientY - 11) + "px";
+    labelEl.style.left = (e.x + 15) + "px";
+    labelEl.style.top = (e.y - 11) + "px";
     renderer.domElement.style.cursor = "pointer";
   } else {
     labelEl.classList.remove("on");
     renderer.domElement.style.cursor = "grab";
   }
   }
-});
+}
 
 renderer.domElement.addEventListener("click", e => {
   const d = drag || lastDrag;
@@ -2716,6 +2741,7 @@ function tick(now) {
     if (Math.hypot(panGlide.x, panGlide.y) < 22) panGlide = null;
     else invalidate(400);                          // keep the loop awake while it slides
   }
+  processPick();
   if (LIFE.on && !reduce) { LIFE.t += dt; stepCrowd(dt); stepPulses(dt); stepClouds(dt); }
   if (tour) stepTour(dt);
   if (ENGINE.on) stepEngine(dt);
@@ -2729,7 +2755,6 @@ function tick(now) {
   hoverRing.visible = hovered >= 0 && MODE === "orbit" && selectedEntity !== hovered;
   if (hoverRing.visible) ringAt(hoverRing, hovered, 10);
 
-  const tops = topThree(FI);
   for (let i = 0; i < plates.length; i++) {
     const sp = plates[i];
     let want = 0;
