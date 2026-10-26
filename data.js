@@ -428,6 +428,53 @@ const PROGRAMS = [
     "b": "Prototype an evidence portfolio linking studio work, reflections and assessments to explicitly chosen competence requirements. Validation by the relevant body would be a separate step; this is not a registration route."
   }
 ];
+/* ── CGA-lite grammar: attribute → form, form → attribute ──────────────
+   Every form number of a contour mass is derived here, and can be walked
+   backwards: measure the form, recover the measure. tests/check.cjs holds
+   both directions (reconstruction ±1) and the disonance test (two different
+   attribute sets cannot produce one identical form). Authored thresholds,
+   like every score — the grammar is published so it can be contested. */
+const GRAMMAR = {
+  /* footprint radius from Access: R = (23 + 4·acc) / 2 */
+  radius:  { attr: "acc", f: v => (23 + 4 * v) / 2,        inv: r => Math.round((r * 2 - 23) / 4) },
+  /* floor slabs from Evidence: floors = 8 + 4·evi */
+  floors:  { attr: "evi", f: v => 8 + 4 * v,               inv: n => Math.round((n - 8) / 4) },
+  /* atrium opening from Access */
+  opening: { attr: "acc", f: v => 0.14 + 0.045 * v,        inv: o => Math.round((o - 0.14) / 0.045) },
+  /* twist from Autonomy − Recognition, in π/15 steps */
+  twist:   { attr: "aut-rec", f: (a, r) => (a - r) * Math.PI / 15,
+             inv: t => Math.round(t * 15 / Math.PI) },
+  /* the contour: eight measures on eight fixed directions. Radius fraction
+     of the footprint = 0.30 + 0.70·value/5, blended halfway between. */
+  contour: { attr: "M", f: v => 0.30 + 0.70 * v / 5,       inv: q => Math.round((q - 0.30) / 0.70 * 5) },
+  /* terrace width from Access (the terraces reading) */
+  terrace: { attr: "acc", f: v => 11 + 3.1 * v,            inv: w => Math.round((w - 11) / 3.1) }
+};
+/* the form of one entity, as the city builds it — pure numbers, no THREE */
+function grammarForm(d) {
+  return {
+    radius: GRAMMAR.radius.f(d.acc),
+    floors: GRAMMAR.floors.f(d.evi),
+    opening: GRAMMAR.opening.f(d.acc),
+    twist: GRAMMAR.twist.f(d.aut, d.rec),
+    taper: y => 1 - (0.10 + 0.035 * d.mat) * y + 0.24 * d.wld / 5 * Math.sin(Math.PI * y)
+              - 0.20 * d.epi / 5 * Math.sin(2 * Math.PI * y),
+    contour: a => {
+      const u = ((a / (Math.PI * 2) * 8) % 8 + 8) % 8, i = Math.floor(u), t = u - i;
+      const blend = (1 - Math.cos(t * Math.PI)) / 2;
+      return GRAMMAR.contour.f(d[M[i][0]] * (1 - blend) + d[M[(i + 1) % 8][0]] * blend);
+    }
+  };
+}
+/* measure the form, recover the measures. r0 is the measured footprint
+   radius (it scales every contour reading away from Access); radii are the
+   eight measured contour radii at the measure directions, y = 0. */
+function grammarReconstruct(form, r0, radii) {
+  const out = { acc: GRAMMAR.radius.inv(r0), evi: GRAMMAR.floors.inv(form.floors) };
+  out["aut-rec"] = GRAMMAR.twist.inv(form.twist);
+  M.forEach(([k], i) => { out[k] = GRAMMAR.contour.inv(radii[i] / r0); });
+  return out;
+}
 const LOTS = [
   {
     "n": "Belgrade bridge",
@@ -454,4 +501,4 @@ const LOTS = [
     "b": "Explore an international studio partnership after confirming institutional roles, eligible countries and the rules of the intended call. The network’s geography alone does not establish eligibility."
   }
 ];
-export { M, E, FRAMES, PROGRAMS, LOTS };
+export { M, E, FRAMES, PROGRAMS, LOTS, GRAMMAR, grammarForm, grammarReconstruct };

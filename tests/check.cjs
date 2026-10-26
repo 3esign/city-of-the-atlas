@@ -1,8 +1,8 @@
 // Content/build invariants for the public static artifact. Browser QA is separate.
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert/strict');
 const root=path.join(__dirname,'..'),read=f=>fs.readFileSync(path.join(root,f),'utf8');
-const ctx={};vm.createContext(ctx);vm.runInContext(read('data.js').replace(/export\s*\{[^}]+\};?/,'')+';globalThis.data={M,E,FRAMES,PROGRAMS,LOTS}',ctx);
-const {M,E,FRAMES,PROGRAMS,LOTS}=ctx.data;
+const ctx={};vm.createContext(ctx);vm.runInContext(read('data.js').replace(/export\s*\{[^}]+\};?/,'')+';globalThis.data={M,E,FRAMES,PROGRAMS,LOTS,GRAMMAR,grammarForm,grammarReconstruct}',ctx);
+const {M,E,FRAMES,PROGRAMS,LOTS,GRAMMAR,grammarForm,grammarReconstruct}=ctx.data;
 assert.equal(E.length,21);assert.equal(M.length,8);assert.equal(FRAMES.length,3);
 for(const e of E)for(const [k]of M)assert(Number.isInteger(e[k])&&e[k]>=0&&e[k]<=5,`${e.n}: ${k}`);
 const WEIGHTS=[
@@ -61,4 +61,39 @@ assert(/e\.shiftKey\) \{[^}]*ArrowLeft/.test(cj),'Shift+arrows must pan');
 assert(html.includes('Shift</kbd>+arrows to pan'),'keyboard pan hint missing');
 assert(/const ENGINE = \{ on: true/.test(cj),'engine must be the default reading');
 assert(cj.includes('() => toggleEngine(true)'),'engine state must be applied on the first frame');
-console.log('PASS: dataset ranges, frame bounds, DOM identity, local links, offline bundle, reading room, attribution and dependency license.');
+/* ── the grammar: the form is derived, and the derivation walks back ───
+   Test rekonstrukcije: measure the form as one would off a drawing
+   (three decimals), recover the measures — nothing may be off by more
+   than one authored point. Disonanca: two different attribute sets must
+   never produce one identical form. */
+for(const e of E){
+  const f=grammarForm(e),q=v=>+v.toFixed(3);
+  const r0=q(f.radius);
+  const radii=M.map((_,mi)=>q(f.radius*f.contour(mi/8*Math.PI*2)));
+  const rec=grammarReconstruct(f,r0,radii);
+  for(const [k,v] of Object.entries(rec)){
+    const truth=k==='aut-rec'?e.aut-e.rec:e[k];
+    assert(Math.abs(v-truth)<=1,`${e.n}: ${k} reconstructed ${v}, authored ${truth}`);
+  }
+}
+{
+  const seen=new Map();
+  for(const e of E){
+    const f=grammarForm(e);
+    const sig=[f.radius,f.floors,f.opening,f.twist,...M.map((_,mi)=>+f.contour(mi/8*Math.PI*2).toFixed(4))].join('|');
+    const prev=seen.get(sig);
+    if(prev!==undefined)assert(M.every(([k])=>e[k]===prev[k]),`disonanca: ${e.n} and ${prev.n} share one form`);
+    else seen.set(sig,e);
+  }
+}
+for(const s of['const GRAMMAR = {','function grammarForm','function grammarReconstruct'])assert(read('data.js').includes(s),`grammar source ${s} missing`);
+assert(cj.includes('grammarForm(d)')&&cj.includes('GRAMMAR.terrace.f'),'the city must build from the published grammar, not private copies');
+/* ── the drawn city: creases, kotiranje, tone stipple ───────────────── */
+for(const s of['new THREE.EdgesGeometry(geo, 22)','function buildDims','addStipple','MAT.crease','body.annotations'])
+  assert(cj.includes(s),`drawing depth missing ${s}`);
+assert(cj.includes('dims.visible=on'),'the Dimensions toggle must show the ground kote');
+/* ── sound: the first tone — 0 asset bytes, gesture-gated, mute visible ─ */
+for(const s of['id="sound"','data-control="sound"','<kbd>M</kbd> sound'])assert(html.includes(s),`sound surface ${s} missing`);
+for(const s of['atlas-sound','webkitAudioContext','ctx.sampleRate','function build','voices','createBuffer'])assert(cj.includes(s),`sound wiring missing ${s}`);
+assert(cj.includes('getElementById("sound").onclick'),'the mute toggle must be wired');
+console.log('PASS: dataset ranges, frame bounds, DOM identity, local links, offline bundle, reading room, attribution and dependency license, grammar reconstruction and disonance, drawing depth, sound surfaces.');

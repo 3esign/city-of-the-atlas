@@ -26,6 +26,9 @@ The same statement lives inside the instrument: the **colophon** opens from the 
 - A city that is inhabited by its own numbers: two walking figures per point of access, one street lamp per point of evidence, traffic on every proposed connection, and a dusk switch that makes the lighting legible.
 - Contour / Terraces comparison, optional relationship lines and dimensions.
 - Exterior walking with keyboard or touch joystick, orientation map and an explicit exit.
+- The drawn city: crease linework on every mass (ISO 128 continuous edges), tone stipple shaded in the fragment shader, and ground dimension lines with dotted axes — dimensions quiet until asked.
+- The first tone: a parameter wind through a breathing lowpass, a 55 Hz sub-hum, and four synthesized UI voices. Zero asset bytes, gesture-gated, always-visible mute.
+- The published grammar (`data.js`): every form number is derived from the authored measures by rules that walk backwards — measure the form, recover the measure, tested within ±1.
 - Reduced-motion support, render-on-demand, a static reading room and an offline single-file build.
 - Local Three.js; no runtime CDN, external fonts, analytics or package installation.
 
@@ -65,11 +68,13 @@ Publication is deliberately manual: set the repository's Pages source to **GitHu
 | Exit walk | Esc; Model button | Model button |
 | Plan, everything named | Plan view; P | Plan view |
 | The engine — the arithmetic, on show | Engine; E — **on by default** | About / index → The engine |
+| Sound — wind, a sub-hum, four tones | Sound; M | About / index → Sound on / off |
+| Ground dimensions (kote) and axes | Dimensions | About / index → Toggle dimensions |
 | Day / dusk | Dusk; N | Day / dusk, in About / index |
 | Population on / off | Life; L | About / index |
 | Reset | Reset view; R | Reset view |
 
-Additional controls are available in About / index on narrow screens. Links: `#f0`, `#f1`, `#f2` select frames; `?e=0` opens an entity; `?walk` enters walking; `?engine` opens the engine over the active frame.
+Additional controls are available in About / index on narrow screens. Links: `#f0`, `#f1`, `#f2` select frames; `?e=0` opens an entity; `?walk` enters walking; `?engine` opens the engine over the active frame. Sound starts only after a first gesture (browser policy), and the mute is remembered in this browser.
 
 ## Sources and verification
 
