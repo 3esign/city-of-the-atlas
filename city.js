@@ -2709,7 +2709,7 @@ addEventListener("keydown", e => {
 const STILL = /[?&]still/.test(location.search);
 if (/[?&]walk/.test(location.search)) requestAnimationFrame(() => enterWalk());
 let frames = 0, last = performance.now();
-let frameRequest = 0, activeUntil = performance.now() + 1500;
+let frameRequest = 0, activeUntil = performance.now() + 1500, idleSkip = false;
 function invalidate(ms = 700) {
   activeUntil = Math.max(activeUntil, performance.now() + ms);
   if (!frameRequest && !document.hidden) frameRequest = requestAnimationFrame(tick);
@@ -2727,6 +2727,14 @@ function tick(now) {
   frameRequest = 0;
   if (document.hidden || renderer.getContext().isContextLost()) return;
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+
+  // while nothing is happening, the living layer breathes at half rate:
+  // every other frame is skipped so an idle tab costs ~half the GPU/CPU,
+  // and heat throttling on weaker machines has room to recover
+  const idle = !tween && !camTween && !tour && !panGlide && MODE !== "walk" &&
+               now >= activeUntil && LIFE.on && !reduce && !STILL;
+  idleSkip = idle && !idleSkip;
+  if (idleSkip) { frameRequest = requestAnimationFrame(tick); return; }
 
   if (tween) {
     const p = tween.dur ? Math.min(1, (now - tween.t0) / tween.dur) : 1;
@@ -2823,7 +2831,7 @@ addEventListener("resize", () => {
 // Diagnostic state is available only to the local QA route; no frame data is sent anywhere.
 if (new URLSearchParams(location.search).has('qa')) window.__atlasQA = {
   geometry: () => masses.map(m=>({name:m.userData.d.n,finite:Array.from(m.geometry.attributes.position.array).every(Number.isFinite),vertices:m.geometry.attributes.position.count,meta:m.geometry.userData})),
-  state: () => ({frame:FI,mode:MODE,frames,colliders:colliders.length,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,orbit:{...orbit},walker:{...walker},camera:camera.position.toArray(),tm:{...tm},tween:!!tween,scheduled:!!frameRequest,drawCalls:sceneStats.calls,pixelRatio:renderer.getPixelRatio(),geometryMode,triangles:sceneStats.triangles,webgl:renderer.getContext().getParameter(renderer.getContext().RENDERER)}),
+  state: () => ({frame:FI,mode:MODE,frames,colliders:colliders.length,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,orbit:{...orbit},walker:{...walker},camera:camera.position.toArray(),tm:{...tm},tween:!!tween,scheduled:!!frameRequest,idleSkip,activeIn:Math.round(activeUntil-performance.now()),drawCalls:sceneStats.calls,pixelRatio:renderer.getPixelRatio(),geometryMode,triangles:sceneStats.triangles,webgl:renderer.getContext().getParameter(renderer.getContext().RENDERER)}),
   point: i => proj(masses[i].position.x,masses[i].scale.y/2,masses[i].position.z),
   life: () => ({
     agents: agents.length,
